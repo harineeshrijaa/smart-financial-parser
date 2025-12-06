@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 
 from smart_financial_parser.parser.ingest import read_csv
+from smart_financial_parser.parser.normalize import parse_date
 
 
 def configure_logging(verbose: bool) -> None:
@@ -19,6 +20,7 @@ def main(argv=None):
     p.add_argument("--sample", "-s", type=int, default=None, help="Read only first N rows (fast iteration)")
     p.add_argument("--output", "-o", default=None, help="Optional path to write cleaned CSV (not yet implemented)")
     p.add_argument("--report", "-r", default=None, help="Optional path to write report JSON (not yet implemented)")
+    p.add_argument("--clean-preview", action="store_true", help="Show cleaned preview columns (raw + date_iso)")
     p.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
     args = p.parse_args(argv)
 
@@ -50,10 +52,22 @@ def main(argv=None):
     preview_n = max(0, int(args.preview))
     if preview_n > 0:
         try:
-            print(df.head(preview_n).to_string(index=False))
+            if args.clean_preview:
+                # Add a `date_iso` column using parse_date; keep original `date` column
+                if "date" in df.columns:
+                    df = df.copy()
+                    df["date_iso"] = df["date"].apply(parse_date)
+                    print(df.loc[:, ["date", "date_iso"]].head(preview_n).to_string(index=False))
+                else:
+                    print("(clean-preview requested but no `date` column found)")
+            else:
+                print(df.head(preview_n).to_string(index=False))
         except Exception:
             # Fallback: pretty-print limited columns if to_string fails
-            print(df.head(preview_n).to_dict(orient="records"))
+            if args.clean_preview and "date" in df.columns:
+                print([{"date": r.get("date"), "date_iso": parse_date(r.get("date"))} for r in df.head(preview_n).to_dict(orient="records")])
+            else:
+                print(df.head(preview_n).to_dict(orient="records"))
 
     # Hooks for future features: write output/report if requested
     if args.output:

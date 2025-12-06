@@ -16,3 +16,5 @@ date,merchant,amount,notes
 "2023-12-01","YEN MART","1200 JPY","yen code"
 "2023-04-01","BAD AMOUNT","12..00","malformed amount"
 "31-12-23","EU DAY","$5.00","day-first hyphen date"
+
+"01/02/49","OLD BOOKS CO","$12.99","vintage book purchase"
