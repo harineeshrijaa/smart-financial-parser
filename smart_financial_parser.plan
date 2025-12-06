@@ -1,0 +1,353 @@
+
+harineeshrijaa: Can you help me detailing out step by step instructions to complete the code challenge so that I would be able to complete each step, test, and make progress one by one. 
+
+GitHub Copilot: I'll lay out a concrete, step-by-step plan you can follow and complete incrementally — with commands, small coding tasks, tests for each step, and acceptance criteria so you can make steady progress.
+
+**Plan Overview**
+- 1: Create repo structure & virtualenv
+- 2: Add messy CSV (the Chaos)
+- 3: Implement ingestion + basic CLI
+- 4: Implement normalization: dates, amounts, merchants
+- 5: Add categorization + reporting
+- 6: Add tests and run them
+- 7: Write README with Methodology & AI disclosure
+- 8: Final polish and acceptance checks
+
+Follow each step, run the tests or commands shown, and only move to the next step once the acceptance criteria pass.
+
+**Environment & Setup (step 1)**
+- Goal: create a Python project skeleton and isolated environment.
+- Files to create:
+  - `smart_financial_parser/` (package)
+    - `cli.py`
+    - `parser/__init__.py`
+    - `parser/ingest.py`
+    - `parser/normalize.py`
+    - `parser/categorize.py`
+    - `parser/report.py`
+  - `data/messy_transactions.csv`
+  - `tests/test_normalize.py`
+  - `requirements.txt`
+  - `README.md`
+
+Commands (zsh):
+```bash
+cd "/Users/harineesaravanakumar/personal projects/Smart Financial Parser"
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+```
+
+Add this to `requirements.txt` (start minimal):
+```
+pandas
+python-dateutil
+dateparser
+rapidfuzz
+pytest
+```
+
+Install:
+```bash
+pip install -r requirements.txt
+```
+
+Acceptance criteria:
+- Virtualenv created and packages install without error.
+
+**Step 2 — Create the Messy CSV (the Chaos)**
+- Goal: produce `data/messy_transactions.csv` that actually triggers edge cases.
+- Columns: `date,merchant,amount,notes`
+- Example content (save exactly, including quotes to simulate messy input):
+
+Create file `data/messy_transactions.csv` with:
+
+date,merchant,amount,notes
+"2023-01-01","UBER *TRIP","$ 12.50","ride home"
+"Jan 1st 23","Uber Technologies","USD12.50","business"
+"01/02/2023","UBER EATS","£8.00","dinner"
+"3rd Mar 2023","AMZN Mktp US","$123.45","books"
+"2023.04.05","WALMART #1234","$45.00","groceries"
+"2023-05-06","(ATM Withdrawal)","(200.00)","cash"
+"06/07/23","Starbucks Store #456","$4,500.00","big purchase"
+"2023-08-01T14:30:00Z","Uber*Eats","12.00 USD","food"
+"Aug 5 2023","AMAZON.COM","$15.99","office supplies"
+"2023/09/10","SHELL OIL CO.","-$32.00","fuel"
+
+Acceptance criteria:
+- File exists at `data/messy_transactions.csv` and contains the rows above.
+
+**Step 3 — Ingest & Basic CLI (small, testable chunk)**
+- Goal: implement CSV reading and a CLI that prints rows count and a preview.
+- Task: implement `parser/ingest.py` with a `read_csv(path)` that returns a `pandas.DataFrame`.
+- Implement `cli.py` to accept `--input` and `--preview` and print first 3 rows.
+
+Minimal `cli.py` outline:
+- Use `argparse` to parse `--input` (required) and `--preview` (defaults to 3).
+- Call `read_csv`, print shape and head().
+
+Test:
+```bash
+python -m smart_financial_parser.cli --input data/messy_transactions.csv --preview 3
+```
+
+Acceptance criteria:
+- CLI prints "Read N rows" and shows first 3 rows with the original messy values.
+
+If this fails: check file path and pandas read options (e.g., `quotechar` default is fine).
+
+**Step 4 — Date Normalization (implement + tests)**
+- Goal: robustly normalize many human date formats to ISO `YYYY-MM-DD`.
+- Approach:
+  - Use `dateparser.parse()` as primary.
+  - Pre-clean: remove ordinal suffixes (1st, 2nd, 3rd) using regex: `re.sub(r'(\d)(st|nd|rd|th)', r'\1', s)`.
+  - Fallbacks: `dateutil.parser.parse()` and numeric-format regex for MM/DD/YYYY or YYYY.MM.DD.
+  - Wrap in `parse_date(s)` which returns `YYYY-MM-DD` string or None.
+
+Example `parser/normalize.py` function (concise pseudocode):
+```python
+import re
+from dateparser import parse as dp_parse
+from dateutil.parser import parse as du_parse
+
+def parse_date(s):
+    if not isinstance(s, str) or not s.strip():
+        return None
+    s2 = re.sub(r'(\d)(st|nd|rd|th)', r'\1', s)
+    dt = dp_parse(s2, settings={'RETURN_AS_TIMEZONE_AWARE': False})
+    if dt:
+        return dt.date().isoformat()
+    try:
+        dt2 = du_parse(s2, fuzzy=True, dayfirst=False)
+        return dt2.date().isoformat()
+    except Exception:
+        return None
+```
+
+Unit tests `tests/test_normalize.py` (dates subset):
+- Inputs to test:
+  - `"2023-01-01"` -> `"2023-01-01"`
+  - `"Jan 1st 23"` -> `"2023-01-01"`
+  - `"01/02/2023"` -> depending on locale; explicitly assert `"2023-01-02"` if you assume MM/DD/YYYY
+  - `"3rd Mar 2023"` -> `"2023-03-03"`
+  - `"2023.04.05"` -> `"2023-04-05"`
+  - `"2023-08-01T14:30:00Z"` -> `"2023-08-01"`
+
+Run tests:
+```bash
+pytest tests/test_normalize.py::test_parse_date -q
+```
+
+Acceptance criteria:
+- All date tests pass.
+- If a format fails, add an extra fallback and re-run.
+
+Notes/decisions:
+- Document in README whether you interpret ambiguous `01/02/2023` as MM/DD/YYYY or DD/MM/YYYY. For U.S. transactions, prefer MM/DD/YYYY; make this explicit.
+
+**Step 5 — Amount Parsing**
+- Goal: normalize amounts into a `Decimal` or float and a `currency` column.
+- Edge cases: currency symbols ($, £, €), currency text (`USD12.50`), commas in thousands, parentheses for negatives, leading minus sign.
+- Implementation plan:
+  - Regex to capture optional currency symbol/letters, optional negatives, digits with optional commas and decimals.
+  - Use `decimal.Decimal` for precision or `float` if simpler (Decimal recommended).
+- Example parse rules:
+  - `($ 12.50)` -> `-12.50`
+  - `USD12.50` -> `12.50`, currency: `USD`
+  - `£8.00` -> `8.00`, currency `GBP`
+  - `-$32.00` -> `-32.00`
+
+Example function signature:
+```python
+from decimal import Decimal
+import re
+
+def parse_amount(s):
+    # returns (Decimal amount, currency_str or None)
+```
+
+Unit tests:
+- `"$ 12.50"` -> `Decimal('12.50')`, `None` or `USD` depending on detection
+- `"(200.00)"` -> `Decimal('-200.00')`
+- `"$4,500.00"` -> `Decimal('4500.00')`
+- `"12.00 USD"` -> `Decimal('12.00')`, `"USD"`
+
+Acceptance criteria:
+- Amount tests pass and numeric math with `Decimal` yields correct sums.
+
+**Step 6 — Merchant Normalization (canonicalization + fuzzy matching)**
+- Goal: map variants like `UBER *TRIP`, `Uber Technologies`, `UBER EATS`, `Uber*Eats` → canonical `Uber`.
+- Approach:
+  - Create `data/merchants.json` or `merchants.yml` with canonical keys mapping to known aliases:
+    ```
+    {
+      "Uber": ["UBER *TRIP", "Uber Technologies", "UBER EATS", "Uber*Eats", "UBER TRIP"]
+      "Amazon": ["AMZN Mktp US", "AMAZON.COM", "AMZN"]
+      ...
+    }
+    ```
+  - Normalization flow:
+    - Clean input: lower-case, strip punctuation, collapse multiple spaces.
+    - Exact match against alias list (lower-case).
+    - If not found, use `rapidfuzz.process.extractOne(raw, canonical_keys + aliases)` to find best match above threshold (85).
+    - If ambiguous or below threshold, set `canonical_merchant=None` and record `merchant_match_score` and `raw_merchant`.
+- Implement `normalize_merchant(raw, merchant_map)` -> `canonical_name, score`.
+
+Unit tests:
+- Ensure all Uber variants map to `"Uber"`.
+- Unknown merchant returns `None` canonical and score below threshold.
+
+Acceptance criteria:
+- Fuzzy matching tests pass.
+- On the messy CSV, most merchant rows map to canonical names.
+
+**Step 7 — Categorization & Reporting**
+- Goal: assign categories (e.g., Transport, Food, Groceries, Utilities) and produce top-spending category.
+- Approach:
+  - Use a simple mapping from canonical merchant → category.
+  - `categorize.py` contains a dictionary `merchant_to_category = {"Uber": "Transport", "Starbucks": "Food", "Amazon": "Shopping", "Walmart": "Groceries", "Shell Oil": "Fuel", ...}`
+  - For unknown merchants, fallback to rules: `if 'starbuck' in raw_lower: 'Food'`.
+- Reporting:
+  - After normalization, group by `category` and sum `amount` (Decimal converted to numeric).
+  - Produce:
+    - `report/top_spending.json` containing `{ "top_category": "Shopping", "amount": 1234.56, "by_category": [{...}] }`
+    - Print to stdout: `Top spending category: Shopping - $1,234.56 (45%)`
+
+Acceptance criteria:
+- Running CLI with `--report report/top_spending.json` creates the JSON file.
+- The printed top category matches the aggregated sums from the cleaned CSV.
+
+Example CLI usage:
+```bash
+python -m smart_financial_parser.cli -i data/messy_transactions.csv -o data/cleaned_transactions.csv -r report/top_spending.json
+```
+
+**Step 8 — Testing (unit + integration)**
+- Tests to add under `tests/`:
+  - `test_parse_date` (date variations)
+  - `test_parse_amount` (amount variations)
+  - `test_normalize_merchant` (alias + fuzzy matching)
+  - `test_end_to_end` — run the ingestion, normalization, categorization on `data/messy_transactions.csv` and assert:
+    - Output `data/cleaned_transactions.csv` exists.
+    - The `top_category` in produced report equals expected (you can hardcode expected given the sample CSV).
+- Run all tests:
+```bash
+pytest -q
+```
+
+Acceptance criteria:
+- All tests pass.
+- Coverage: aim for core functions covered; you can optionally run coverage measurement but not required.
+
+**Step 9 — README & Methodology (mandatory)**
+- Compose `README.md` with these sections:
+  - **Overview**: what it does.
+  - **Quick Start**: virtualenv, install, run commands.
+  - **Design Decisions**: libraries chosen and why (`pandas`, `dateparser`, `rapidfuzz`, `Decimal`).
+  - **Methodology** (required): explicit AI disclosure and verification steps. Example wording:
+    - "AI Disclosure: I used ChatGPT to prototype a date-cleaning regex and confirm some ambiguous date parsing strategies. All code and tests were reviewed and adjusted by me; I verified outputs with unit tests covering 10+ date/amount permutations."
+    - "Verification: ran `pytest` and spot-checked raw vs cleaned rows. Unknown formats are logged to `issues` column."
+  - **Files**: list `data/messy_transactions.csv`, `data/merchants.json`.
+  - **How to extend**: multi-currency, timezone handling, ML categorization.
+- Provide exact run commands as shown earlier (wrap them in backticks).
+
+Acceptance criteria:
+- README contains a `Methodology` section with AI disclosure.
+
+**Step 10 — Polishing & Error Handling**
+- Add per-row `issues` column to cleaned CSV for rows with parse failures.
+- Add CLI flags:
+  - `--sample N` to process first N rows for fast iteration.
+  - `--verbose` to enable logging of parse failures.
+- Logging:
+  - Use Python `logging` with `--verbose` to log warnings rather than raising exceptions.
+
+Acceptance criteria:
+- Unexpected row formats do not crash the program; they are recorded in `issues` and processing continues.
+
+**Troubleshooting & Tips**
+- Ambiguous date `01/02/2023`: pick a policy and document it.
+- Fuzzy matching false positives: lower threshold if you get wrong canonicalization, or require exact alias match first.
+- Decimal vs float: use `Decimal` while aggregating; convert to float for JSON output.
+- If `dateparser` parses a wrong date, add regex-based guards for obvious numeric forms.
+
+**Quick Example Expected Outputs**
+- Cleaned CSV columns: `date_iso,raw_merchant,merchant_canonical,amount,currency,category,notes,issues`
+- Sample cleaned row:
+`2023-01-01,UBER *TRIP,Uber,12.50,USD,Transport,ride home,`
+
+Top spending printed:
+`Top spending category: Shopping - $123.45 (34%)`
+
+**Checklist Before Submission**
+- [ ] CLI runs end-to-end and writes `data/cleaned_transactions.csv`.
+- [ ] `report/top_spending.json` created and values match cleaned data.
+- [ ] Unit tests: `pytest` passes.
+- [ ] `README.md` includes Methodology and AI disclosure.
+- [ ] `data/messy_transactions.csv` included as evidence.
+
+---
+
+If you want, I can now:
+- Scaffold the repo/files and implement the functions and tests for you (I will create the files and run tests), or
+- Generate the exact code snippets for `parse_date`, `parse_amount`, `normalize_merchant`, and one integration test that you can paste into the project.
+
+Which would you like me to do next?Acceptance criteria:
+- All tests pass.
+- Coverage: aim for core functions covered; you can optionally run coverage measurement but not required.
+
+**Step 9 — README & Methodology (mandatory)**
+- Compose `README.md` with these sections:
+  - **Overview**: what it does.
+  - **Quick Start**: virtualenv, install, run commands.
+  - **Design Decisions**: libraries chosen and why (`pandas`, `dateparser`, `rapidfuzz`, `Decimal`).
+  - **Methodology** (required): explicit AI disclosure and verification steps. Example wording:
+    - "AI Disclosure: I used ChatGPT to prototype a date-cleaning regex and confirm some ambiguous date parsing strategies. All code and tests were reviewed and adjusted by me; I verified outputs with unit tests covering 10+ date/amount permutations."
+    - "Verification: ran `pytest` and spot-checked raw vs cleaned rows. Unknown formats are logged to `issues` column."
+  - **Files**: list `data/messy_transactions.csv`, `data/merchants.json`.
+  - **How to extend**: multi-currency, timezone handling, ML categorization.
+- Provide exact run commands as shown earlier (wrap them in backticks).
+
+Acceptance criteria:
+- README contains a `Methodology` section with AI disclosure.
+
+**Step 10 — Polishing & Error Handling**
+- Add per-row `issues` column to cleaned CSV for rows with parse failures.
+- Add CLI flags:
+  - `--sample N` to process first N rows for fast iteration.
+  - `--verbose` to enable logging of parse failures.
+- Logging:
+  - Use Python `logging` with `--verbose` to log warnings rather than raising exceptions.
+
+Acceptance criteria:
+- Unexpected row formats do not crash the program; they are recorded in `issues` and processing continues.
+
+**Troubleshooting & Tips**
+- Ambiguous date `01/02/2023`: pick a policy and document it.
+- Fuzzy matching false positives: lower threshold if you get wrong canonicalization, or require exact alias match first.
+- Decimal vs float: use `Decimal` while aggregating; convert to float for JSON output.
+- If `dateparser` parses a wrong date, add regex-based guards for obvious numeric forms.
+
+**Quick Example Expected Outputs**
+- Cleaned CSV columns: `date_iso,raw_merchant,merchant_canonical,amount,currency,category,notes,issues`
+- Sample cleaned row:
+`2023-01-01,UBER *TRIP,Uber,12.50,USD,Transport,ride home,`
+
+Top spending printed:
+`Top spending category: Shopping - $123.45 (34%)`
+
+**Checklist Before Submission**
+- [ ] CLI runs end-to-end and writes `data/cleaned_transactions.csv`.
+- [ ] `report/top_spending.json` created and values match cleaned data.
+- [ ] Unit tests: `pytest` passes.
+- [ ] `README.md` includes Methodology and AI disclosure.
+- [ ] `data/messy_transactions.csv` included as evidence.
+
+---
+
+If you want, I can now:
+- Scaffold the repo/files and implement the functions and tests for you (I will create the files and run tests), or
+- Generate the exact code snippets for `parse_date`, `parse_amount`, `normalize_merchant`, and one integration test that you can paste into the project.
+
+Which would you like me to do next?
+
