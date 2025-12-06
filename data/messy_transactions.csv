@@ -16,5 +16,11 @@ date,merchant,amount,notes
 "2023-12-01","YEN MART","1200 JPY","yen code"
 "2023-04-01","BAD AMOUNT","12..00","malformed amount"
 "31-12-23","EU DAY","$5.00","day-first hyphen date"
-
 "01/02/49","OLD BOOKS CO","$12.99","vintage book purchase"
+"15/01/24","Asia-Imports Ltd.","１２３４．５６","electronics import invoice"
+"Feb 20th 2024","Electro.Depot#100","1 234.56","large TV purchase"
+"Mar 10, 2024","Swiss-Boulangerie","1'234.56 CHF","artisan breads"
+"04.18.24","Office Supplies Co.","1.234.56 USD","stationery order (malformed)"
+"22 May 24","Cairo Market","١٢٣٤٫٥٦","import spices"
+"2024/06/30","Neighborhood Grocery #22","1 234,56","weekly groceries"
+"07-07-2024","Corner.Store","12 dollars","small purchase"

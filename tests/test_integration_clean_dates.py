@@ -37,6 +37,16 @@ def test_clean_dates_for_messy_csv():
         "2023-12-31",
         "1949-01-02",
     ]
+    # Expected dates for appended messy rows
+    expected.extend([
+        "2024-01-15",
+        "2024-02-20",
+        "2024-03-10",
+        "2024-04-18",
+        "2024-05-22",
+        "2024-06-30",
+        "2024-07-07",
+    ])
 
     got = list(df["date_iso"].astype(object).where(pd.notna(df["date_iso"]), None))
 

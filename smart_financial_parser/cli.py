@@ -1,10 +1,11 @@
 import argparse
 import logging
+import pandas as pd
 from pathlib import Path
 import sys
 
 from smart_financial_parser.parser.ingest import read_csv
-from smart_financial_parser.parser.normalize import parse_date
+from smart_financial_parser.parser.normalize import parse_date, parse_amount
 
 
 def configure_logging(verbose: bool) -> None:
@@ -20,7 +21,8 @@ def main(argv=None):
     p.add_argument("--sample", "-s", type=int, default=None, help="Read only first N rows (fast iteration)")
     p.add_argument("--output", "-o", default=None, help="Optional path to write cleaned CSV (not yet implemented)")
     p.add_argument("--report", "-r", default=None, help="Optional path to write report JSON (not yet implemented)")
-    p.add_argument("--clean-preview", action="store_true", help="Show cleaned preview columns (raw + date_iso)")
+    p.add_argument("--clean-preview", action="store_true", help="Show cleaned preview columns (raw + date_iso + amount_decimal/currency)")
+    p.add_argument("--default-currency", default=None, help="Default currency code to apply in preview when currency is missing (optional)")
     p.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
     args = p.parse_args(argv)
 
@@ -53,8 +55,19 @@ def main(argv=None):
     if preview_n > 0:
         try:
             if args.clean_preview:
-                # Add a `date_iso` column using parse_date; keep original `date` column
-                if "date" in df.columns:
+                # Add cleaned columns using parse_date and parse_amount; keep original columns
+                if "date" in df.columns and "amount" in df.columns:
+                    df = df.copy()
+                    df["date_iso"] = df["date"].apply(parse_date)
+                    # request issues from parse_amount so we can show/record repairs
+                    parsed = df["amount"].apply(lambda s: pd.Series(parse_amount(s, return_issues=True), index=["amount_decimal", "currency", "issues"]))
+                    df = pd.concat([df, parsed], axis=1)
+                    # If a default currency was provided, apply it for preview only where currency is missing
+                    if args.default_currency:
+                        df["currency"] = df["currency"].where(pd.notna(df["currency"]), args.default_currency)
+                    cols = ["date", "date_iso", "amount", "amount_decimal", "currency", "issues"]
+                    print(df.loc[:, cols].head(preview_n).to_string(index=False))
+                elif "date" in df.columns:
                     df = df.copy()
                     df["date_iso"] = df["date"].apply(parse_date)
                     print(df.loc[:, ["date", "date_iso"]].head(preview_n).to_string(index=False))
@@ -65,14 +78,38 @@ def main(argv=None):
         except Exception:
             # Fallback: pretty-print limited columns if to_string fails
             if args.clean_preview and "date" in df.columns:
-                print([{"date": r.get("date"), "date_iso": parse_date(r.get("date"))} for r in df.head(preview_n).to_dict(orient="records")])
+                out = []
+                for r in df.head(preview_n).to_dict(orient="records"):
+                    amt_val = None
+                    curr = None
+                    issues = None
+                    if "amount" in r:
+                        parsed = parse_amount(r.get("amount"), return_issues=True)
+                        if parsed:
+                            try:
+                                amt_val, curr, issues = parsed
+                            except Exception:
+                                amt_val, curr = parsed
+                    out.append({"date": r.get("date"), "date_iso": parse_date(r.get("date")), "amount": r.get("amount"), "amount_decimal": amt_val, "currency": curr, "issues": issues})
+                print(out)
             else:
                 print(df.head(preview_n).to_dict(orient="records"))
 
     # Hooks for future features: write output/report if requested
     if args.output:
         try:
-            df.to_csv(args.output, index=False)
+            # Prepare cleaned DataFrame to persist normalized columns
+            df_out = df.copy()
+            if "date" in df_out.columns and "date_iso" not in df_out.columns:
+                df_out["date_iso"] = df_out["date"].apply(parse_date)
+            if "amount" in df_out.columns and ("amount_decimal" not in df_out.columns or "currency" not in df_out.columns or "issues" not in df_out.columns):
+                parsed_out = df_out["amount"].apply(lambda s: pd.Series(parse_amount(s, return_issues=True), index=["amount_decimal", "currency", "issues"]))
+                df_out = pd.concat([df_out, parsed_out], axis=1)
+            # Apply default currency if requested (persisted to output)
+            if args.default_currency:
+                df_out["currency"] = df_out["currency"].where(pd.notna(df_out["currency"]), args.default_currency)
+            # Write cleaned CSV
+            df_out.to_csv(args.output, index=False)
             log.info("Wrote cleaned CSV to %s", args.output)
         except Exception as e:
             log.error("Failed to write output CSV: %s", e)
