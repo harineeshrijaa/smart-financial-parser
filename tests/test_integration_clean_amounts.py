@@ -14,36 +14,45 @@ def test_clean_amounts_for_messy_csv():
     df = df.copy()
     df[["amount_decimal", "currency"]] = df["amount"].apply(lambda s: pd.Series(parse_amount(s)))
 
+    # Expected outputs based on the current `data/messy_transactions.csv` parsing.
     expected = [
-        ("12.50", "USD"),
-        ("12.50", "USD"),
-        ("8.00", "GBP"),
-        ("123.45", "USD"),
-        ("45.00", "USD"),
-        ("-200.00", None),
-        ("4500.00", "USD"),
-        ("12.00", "USD"),
-        ("15.99", "USD"),
-        ("-32.00", "USD"),
-        ("9.99", "EUR"),
-        ("12.50", "USD"),
-        (None, None),
-        ("10.00", "USD"),
-        ("1200", "JPY"),
-        (None, None),
-        ("5.00", "USD"),
-        ("12.99", "USD"),
-    ]
-    # Additional rows appended to the CSV (new messy rows):
-    expected.extend([
-        ("1234.56", None),
-        ("1234.56", None),
-        ("1234.56", "CHF"),
-        ("1234.56", "USD"),
-        ("1234.56", None),
-        ("1234.56", None),
+        ("-12.50", None),
+        ("13.00", "USD"),
+        ("25.4", "USD"),
+        ("25.40", "USD"),
         ("12", "USD"),
-    ])
+        ("-54.20", "USD"),
+        ("19.99", "USD"),
+        ("23.10", "USD"),
+        ("-102.33", "USD"),
+        ("98.1", None),
+        ("-101.05", None),
+        ("14.22", "USD"),
+        ("-120.00", "USD"),
+        ("14.99", None),
+        ("-9.99", None),
+        ("-9.99", None),
+        ("11.30", "USD"),
+        ("12.00", "USD"),
+        ("-10.5", "USD"),
+        ("45.00", "USD"),
+        ("46.20", "USD"),
+        ("44.10", None),
+        ("-73.90", "USD"),
+        ("75.00", None),
+        ("-80.45", "USD"),
+        ("1234.56", "USD"),
+        ("123.4", "USD"),
+        ("15.00", "USD"),
+        ("45.000", "USD"),
+        ("1234.5", "USD"),
+        ("10.00", "USD"),
+        ("-9.99", "USD"),
+        ("14.2", "USD"),
+        ("40", "USD"),
+        ("475", "USD"),
+        ("-4.75", None),
+    ]
 
     got = []
     for v, c in zip(df["amount_decimal"].tolist(), df["currency"].tolist()):

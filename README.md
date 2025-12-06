@@ -13,6 +13,16 @@ pip install -r requirements.txt
 
 See `smart_financial_parser/` for code and `tests/` for unit tests.
 
+Optional embedding dependency
+----------------------------
+This project includes an optional embedding-based fallback for merchant normalization which improves matching for noisy merchant strings. To enable it, install `sentence-transformers` in your virtual environment:
+
+```bash
+pip install sentence-transformers
+```
+
+Note: the model weights (e.g. `all-MiniLM-L6-v2`) will be downloaded on first use. This dependency is optional; if it is not installed the code falls back to RapidFuzz-only fuzzy matching.
+
 **What I implemented (Step 1-4 partial)**
 - **Ingestion & CLI**: `smart_financial_parser/parser/ingest.py` (`read_csv`) and `smart_financial_parser/cli.py` — reads CSV, supports `--preview`, `--sample`, `--output` (hook), `--verbose` and a new `--clean-preview` flag.
 - **Date normalization**: `smart_financial_parser/parser/normalize.py` — `parse_date(s)` returns ISO `YYYY-MM-DD` or `None`. Uses `dateparser` first (with `DATE_ORDER=MDY`), expands two-digit years with a pivot (00-49 -> 2000-2049; 50-99 -> 1950-1999), strips ordinal suffixes, and falls back to `dateutil`.

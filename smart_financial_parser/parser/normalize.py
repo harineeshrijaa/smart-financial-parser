@@ -11,6 +11,26 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, module="dateparse
 
 from dateparser import parse as dp_parse
 from dateutil.parser import parse as du_parse
+import json
+import os
+try:
+    # rapidfuzz is an optional dependency; prefer it if available
+    from rapidfuzz import process as rf_process
+    from rapidfuzz import fuzz as rf_fuzz
+    _HAS_RAPIDFUZZ = True
+except Exception:
+    _HAS_RAPIDFUZZ = False
+try:
+    # sentence-transformers optional embedding fallback
+    from sentence_transformers import SentenceTransformer
+    from sentence_transformers import util as _st_util
+    _HAS_EMBEDDINGS = True
+except Exception:
+    _HAS_EMBEDDINGS = False
+
+# caches for embeddings to avoid reloading model repeatedly
+_EMBED_MODEL = None
+_CHOICE_EMBED_CACHE = None
 
 
 def _strip_ordinal(s: str) -> str:
@@ -299,3 +319,211 @@ def parse_amount(s: Optional[str], return_issues: bool = False) -> Tuple[Optiona
     if return_issues:
         return val, currency, issues
     return val, currency
+
+
+def _clean_merchant(raw: Optional[str]) -> str:
+    """Normalize merchant text for matching: lower-case, unicode-normalize,
+    strip punctuation, collapse spaces, and remove common noise like store numbers.
+
+    Returns a cleaned string suitable for exact or fuzzy matching.
+    """
+    if not raw:
+        return ""
+    if not isinstance(raw, str):
+        raw = str(raw)
+    s = unicodedata.normalize("NFKC", raw)
+    s = s.lower()
+    # Replace common punctuation/symbols with space
+    s = re.sub(r"[\u2000-\u206F\u2E00-\u2E7F'\"·•*\/\\(),@!?:;_\[\]#\$%\^&=+<>`~]+", " ", s)
+    # Remove store numbers like '#1234' or trailing numbers
+    s = re.sub(r"#\d+", " ", s)
+    s = re.sub(r"\b(store|store\s*#|atm|pos|terminal)\b", " ", s)
+    # Remove long numeric sequences (likely transaction ids)
+    s = re.sub(r"\b\d{4,}\b", " ", s)
+    # Collapse single-letter spaced tokens like 'a m a z o n' -> 'amazon'
+    # remove spaces between single-letter tokens so spaced acronyms/words normalize
+    s = re.sub(r"\b([a-zA-Z])(?:\s+)(?=[a-zA-Z]\b)", r"\1", s)
+    # Additional aggressive normalization helper: remove common store-type tokens
+    # (this does not run by default; an aggressive pass uses a variant of this)
+    # kept here so it can be reused elsewhere
+    # e.g. 'wal-mart supercenter 3301' -> 'wal-mart supercenter'
+    # (we do not remove 'supercenter' on the normal pass to preserve tokens)
+    # Collapse whitespace
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _aggressive_clean(s: str) -> str:
+    """A stronger cleaning pass for low-confidence inputs.
+
+    - remove numeric suffixes and store/unit tokens
+    - map common variants to simpler forms
+    - remove words like 'supercenter', 'store', 'center', 'ctr', 'branch'
+    This is applied only when initial fuzzy score is below threshold.
+    """
+    if not s:
+        return s
+    t = s
+    # remove ordinal markers and punctuation, already normalized by _clean_merchant
+    # remove tokens that usually add noise
+    t = re.sub(r"\b(supercenter|super ctr|super ctr\.|super ctr|store|store\b|branch|branch\b|center|ctr|centre)\b", " ", t)
+    # remove trailing small numeric groups often used as store ids
+    t = re.sub(r"\b\d{2,}\b", " ", t)
+    # collapse repeated whitespace
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def normalize_merchant(raw: Optional[str], merchant_map: dict, threshold: int = 85, return_issues: bool = False):
+    """Normalize a raw merchant string to a canonical merchant.
+
+    Parameters:
+    - raw: raw merchant string from the CSV/transaction
+    - merchant_map: mapping of canonical_name -> list_of_aliases (as in `data/merchants.json`)
+    - threshold: rapidfuzz score threshold for accepting fuzzy matches (0-100)
+    - return_issues: if True, returns (canonical_or_None, score_int, issues_list)
+
+    Returns either `(canonical_name, score)` or `(canonical_name, score, issues)` when
+    `return_issues=True`. Score is 0-100 (int). When an exact alias match is found score=100.
+    """
+    issues = []
+    if raw is None or str(raw).strip() == "":
+        if return_issues:
+            issues.append("empty_merchant")
+            return None, 0, issues
+        return None, 0
+
+    cleaned = _clean_merchant(raw)
+
+    # Build alias -> canonical mapping and choices list for fuzzy matching
+    alias_map = {}
+    choices = []
+    for canonical, aliases in (merchant_map or {}).items():
+        # include canonical name itself
+        c_clean = _clean_merchant(canonical)
+        if c_clean:
+            alias_map[c_clean] = canonical
+            choices.append(c_clean)
+        # aliases may be a list or single string
+        if isinstance(aliases, (list, tuple)):
+            for a in aliases:
+                a_clean = _clean_merchant(a)
+                if a_clean:
+                    alias_map[a_clean] = canonical
+                    choices.append(a_clean)
+        elif isinstance(aliases, str):
+            a_clean = _clean_merchant(aliases)
+            if a_clean:
+                alias_map[a_clean] = canonical
+                choices.append(a_clean)
+
+    # Exact match short-circuit
+    if cleaned in alias_map:
+        canonical = alias_map[cleaned]
+        if return_issues:
+            return canonical, 100, issues
+        return canonical, 100
+
+    # If there are no choices, nothing to match against
+    if not choices:
+        if return_issues:
+            issues.append("no_merchant_map")
+            return None, 0, issues
+        return None, 0
+
+    # Try fuzzy matching using rapidfuzz if available
+    if _HAS_RAPIDFUZZ:
+        try:
+            # Prefer token_set_ratio for robustness against token reordering and duplicates.
+            best = rf_process.extractOne(cleaned, choices, scorer=rf_fuzz.token_set_ratio)
+            if best:
+                match_str, score, _ = best
+                # also compute complementary scores and take the max to handle different noise
+                extra_partial = rf_fuzz.partial_ratio(cleaned, match_str)
+                extra_sort = rf_fuzz.token_sort_ratio(cleaned, match_str)
+                score = int(round(max(score, extra_partial, extra_sort)))
+                canonical = alias_map.get(match_str)
+                if score >= threshold:
+                    if return_issues:
+                        issues.append("fuzzy_matched")
+                        return canonical, score, issues
+                    return canonical, score
+                else:
+                    # Attempt an aggressive-clean retry before giving up
+                    cleaned_aggr = _aggressive_clean(cleaned)
+                    if cleaned_aggr and cleaned_aggr != cleaned:
+                        try:
+                            best2 = rf_process.extractOne(cleaned_aggr, choices, scorer=rf_fuzz.token_set_ratio)
+                            if best2:
+                                match2, score2, _ = best2
+                                extra_partial2 = rf_fuzz.partial_ratio(cleaned_aggr, match2)
+                                extra_sort2 = rf_fuzz.token_sort_ratio(cleaned_aggr, match2)
+                                score2 = int(round(max(score2, extra_partial2, extra_sort2)))
+                                if score2 >= threshold:
+                                    canonical2 = alias_map.get(match2)
+                                    if return_issues:
+                                        issues.append("aggressive_fuzzy_matched")
+                                        return canonical2, score2, issues
+                                    return canonical2, score2
+                                # otherwise fall through and report low_confidence with higher of the two
+                                score = max(score, score2)
+                        except Exception:
+                            pass
+                    # Embedding fallback (optional): try sentence-transformers if available
+                    if _HAS_EMBEDDINGS:
+                        try:
+                            global _EMBED_MODEL, _CHOICE_EMBED_CACHE
+                            if _EMBED_MODEL is None:
+                                # small, fast model; requires sentence-transformers and model download
+                                _EMBED_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+                            if _CHOICE_EMBED_CACHE is None:
+                                # store (choices_list, tensor_embeddings)
+                                emb = _EMBED_MODEL.encode(choices, convert_to_tensor=True, show_progress_bar=False)
+                                _CHOICE_EMBED_CACHE = (choices, emb)
+                            choices_list, choices_emb = _CHOICE_EMBED_CACHE
+                            query = cleaned_aggr or cleaned
+                            q_emb = _EMBED_MODEL.encode(query, convert_to_tensor=True)
+                            try:
+                                sims = _st_util.cos_sim(q_emb, choices_emb)
+                            except Exception:
+                                # fallback naming
+                                sims = _st_util.pytorch_cos_sim(q_emb, choices_emb)
+                            # sims could be a 1-d or 2-d tensor/array
+                            # pick best index
+                            best_idx = int(sims.argmax())
+                            best_sim = float(sims[0][best_idx]) if hasattr(sims, '__len__') and sims.ndim > 1 else float(sims[best_idx])
+                            # map similarity to 0-100 score
+                            emb_score = int(round(best_sim * 100))
+                            # embedding threshold (0.0-1.0) -> default 0.72
+                            emb_thresh = 0.72
+                            if best_sim >= emb_thresh:
+                                matched = choices_list[best_idx]
+                                canonical3 = alias_map.get(matched)
+                                if return_issues:
+                                    issues.append("embedding_matched")
+                                    return canonical3, emb_score, issues
+                                return canonical3, emb_score
+                        except Exception:
+                            # embedding fallback failure is non-fatal
+                            pass
+                    if return_issues:
+                        issues.append("low_confidence")
+                        return None, score, issues
+                    return None, score
+        except Exception:
+            # fall through to conservative substring matching
+            pass
+
+    # Fallback: simple substring checks (conservative)
+    for choice in choices:
+        if cleaned in choice or choice in cleaned:
+            canonical = alias_map.get(choice)
+            if return_issues:
+                issues.append("substring_matched")
+                return canonical, 75, issues
+            return canonical, 75
+
+    if return_issues:
+        issues.append("no_match")
+        return None, 0, issues
+    return None, 0

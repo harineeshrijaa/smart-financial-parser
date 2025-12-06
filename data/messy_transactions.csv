@@ -1,26 +1,37 @@
-date,merchant,amount,notes
-"2023-01-01","UBER *TRIP","$ 12.50","ride home"
-"Jan 1st 23","Uber Technologies","USD12.50","business"
-"01/02/2023","UBER EATS","£8.00","dinner"
-"3rd Mar 2023","AMZN Mktp US","$123.45","books"
-"2023.04.05","WALMART #1234","$45.00","groceries"
-"2023-05-06","(ATM Withdrawal)","(200.00)","cash"
-"06/07/23","Starbucks Store #456","$4,500.00","big purchase"
-"2023-08-01T14:30:00Z","Uber*Eats","12.00 USD","food"
-"Aug 5 2023","AMAZON.COM","$15.99","office supplies"
-"2023/09/10","SHELL OIL CO.","-$32.00","fuel"
-"31/12/2023","EURO SHOP","€9,99","euro decimal comma"
-"2023-11-01","FOREIGN USD","USD 12,50","usd with comma decimal"
-"2023-10-10","Unknown Merchant","","missing amount"
-"","MYSTERY SHOP","$10.00","missing date"
-"2023-12-01","YEN MART","1200 JPY","yen code"
-"2023-04-01","BAD AMOUNT","12..00","malformed amount"
-"31-12-23","EU DAY","$5.00","day-first hyphen date"
-"01/02/49","OLD BOOKS CO","$12.99","vintage book purchase"
-"15/01/24","Asia-Imports Ltd.","１２３４．５６","electronics import invoice"
-"Feb 20th 2024","Electro.Depot#100","1 234.56","large TV purchase"
-"Mar 10, 2024","Swiss-Boulangerie","1'234.56 CHF","artisan breads"
-"04.18.24","Office Supplies Co.","1.234.56 USD","stationery order (malformed)"
-"22 May 24","Cairo Market","١٢٣٤٫٥٦","import spices"
-"2024/06/30","Neighborhood Grocery #22","1 234,56","weekly groceries"
-"07-07-2024","Corner.Store","12 dollars","small purchase"
+date,merchant,amount,category
+Jan 1st 23,UBER *TRIP,(12.50),Transport
+2023-01-02T05:33:21Z,Uber Technologies,$13.00 ,Travel
+01/03/23,UBER EATS,  $25.4,Food
+2023/01/04,Uber*Eats, $25.40 ,Delivery
+5-Jan-23,UBER TRIP ,$ 12 ,Transport
+Jan 6th, TARGET #112, -$54.20 ,Shopping
+2023.01.07,TGT 445,"$19,99",Retail
+January 8 2023,Target Store #112 , $23.10 ,Retail
+2023-01-09, WAL-MART SUPERCENTER 3301 , -$102.33 ,Groceries
+1/10/2023,WALMART , ９８.１ ,Groceries
+11-01-23, Walmart Super Ctr,(101.05),Grocery
+2023/01/12,Aｍａｚｏｎ MKTPLACE PMTS, $14.22 ,Online
+1/13/23, Amazon.Com , $-120.00 ,Ecommerce
+"January 14, 2023",AMZN PRIME ,14.99 ,Subscription
+2023-01-15,SPOTIFY  USA ,-9.99 ,Subscription
+1/16/23, Spotify , (9.99) ,Entertainment
+2023.01.17,CHIPOTLE #221, $11.30 ,Food
+18-01-2023,Chipotle Mexican Grill ,$12.00 ,Restaurant
+Jan 19 23, CHIPOTLE , -$10.5 ,Dining
+2023/01/20, EXXONMOBIL 44543354 ,$45.00 ,Gas
+1/21/2023,Exxon ,$46.20 ,Fuel
+Jan 22nd 2023,EXXON MOBIL , 44.10 ,Gas
+2023-01-23,WHOLEFDS MRKT 10203, -$73.90 ,Groceries
+01/24/23,Whole Foods Market , ７５.００ ,Food
+"Jan 25, 2023", WHOLE FOODS ,$-80.45 ,Grocery
+Jan 26th ‘23,AMAZON Mktp US, $1'234.56 ,Online
+1/27/23,AMZN Digital ,$12.3.4 ,Entertainment
+2023-01-28T14:00:00-05:00,Uber Eats,$15.00 ,Food
+01-29-23,Wal-Mart ,$45.000 ,Groceries
+Jan 30 2023,Whole Foods,"$ 1 234,5",Groceries
+2023/01/31,Chipotle, $ 10.00 ,Dining
+02/01/23,SPOTIFY,-$ 9.９９ ,Subscription
+2023-02-02,A M A Z O N,$14.2 ,Online
+3rd Feb 2023,ExxonMobil,$40 ,Gas
+2023-02-04,Starbucks Coffee,$4’75 ,Coffee
+2023-02-05T09:01:11+00:00,STARBUCKS #4421, (4.75) ,Cafe

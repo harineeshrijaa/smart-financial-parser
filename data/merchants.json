@@ -1,0 +1,27 @@
+
+  {
+    "Uber": ["UBER *TRIP", "Uber Technologies", "UBER EATS"],
+    "Amazon": ["AMZN Mktp US", "AMAZON.COM", "AMAZON"],
+    "Starbucks": ["Starbucks Store", "STARBUCKS", "STARBUCKS STORE 45"],
+    "Walmart": ["WALMART #1234", "WALMART", "WALMART INC"],
+    "Shell": ["SHELL OIL CO.", "SHELL", "SHELL OIL"],
+    "Swiss Bakery": ["Swiss-Boulangerie", "Swiss Bakery", "Swiss Boulangerie"],
+    "Neighborhood Grocery": ["Neighborhood Grocery #22", "Neighborhood Grocery", "Neighborhood Grocer"],
+    "Corner Store": ["Corner.Store", "Corner Store", "CornerStore"],
+    "RentCo": ["LANDLORD PAYMENT", "Rent - Apt 2B", "RENT PAYMENT"],
+    "Health Clinic": ["HEALTH CLINIC", "HealthClinic", "Clinic #12"],
+    "Pharmacy": ["PHARMACY INC", "Walgreens Pharmacy", "CVS PHARMACY"],
+    "Cinema": ["CINEPLEX", "Cinema & Tickets", "MOVIE THEATRE"],
+    "Netflix": ["NETFLIX.COM", "Netflix US", "Netflix"],
+    "Credit Card": ["CC PAYMENT", "Credit Card Payment", "Card Payment"],
+    "LoanService": ["LOAN PAYMENT", "LoanService", "Student Loan"],
+    "International Market": ["YEN MART", "EURO SHOP", "Cairo Market"],
+    "Office Supplies": ["Office Supplies Co.", "Office Supplies", "OfficeSupplies"],
+    "Electro Depot": ["Electro.Depot#100", "Electro Depot", "ElectroDepot"],
+    "Asia Imports": ["Asia-Imports Ltd.", "Asia Imports", "AsiaImports"],
+    "Target": ["TARGET #112", "TGT 445", "Target Store #112"],
+    "Chipotle": ["CHIPOTLE #221", "Chipotle Mexican Grill", "Chipotle"],
+    "Whole Foods": ["WHOLEFDS MRKT 10203", "Whole Foods Market", "WHOLE FOODS"],
+    "Spotify": ["SPOTIFY  USA", "Spotify", "SPOTIFY"],
+    "ExxonMobil": ["EXXONMOBIL 44543354", "Exxon", "EXXON MOBIL"]
+  }
