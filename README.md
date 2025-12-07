@@ -9,7 +9,10 @@ This repository is structured for clarity and reproducibility: parsing and canon
 Clone, create a virtual environment, install dependencies, run tests and the CLI:
 
 ```bash
-cd "/Users/harineesaravanakumar/personal projects/Smart Financial Parser"
+# Clone the repo (creates folder `smart-financial-parser`) and change into it:
+git clone https://github.com/harineeshrijaa/smart-financial-parser.git
+cd smart-financial-parser
+
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
