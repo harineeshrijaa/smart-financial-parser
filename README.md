@@ -1,4 +1,4 @@
-# Smart Financial Parser
+# Smart Financial Parser - Harinee Saravanakumar 
 
 A small, test-driven Python CLI that ingests a messy CSV of transactions, normalizes dates/amounts/merchants, categorizes merchants, converts amounts to USD (using deterministic demo FX rates) and produces a top-spending-category report.
 
@@ -87,7 +87,7 @@ I used Copilot's suggestions as starting points — I accepted, adapted, and rej
 
 - Test-first validation: every essential parsing function (`parse_date`, `parse_amount`, `normalize_merchant`) has unit tests that exercise normal cases and edge cases.
 - End-to-end checks: the integration tests run the full pipeline on `data/messy_transactions.csv` to validate cleaned output and the produced `report/top_spending.json`.
-- Manual verification: I also inspected results on real sample rows by printing cleaned outputs for several representative examples. For example, I outputted the raw dates data from `messy_transactions.csv` against the normalized dates to see if it was translated accurately. It repeated the manual verification for normalized merchants, amounts, and categories. 
+- Manual verification: I also inspected results on real sample rows by printing cleaned outputs for several representative examples. For example, I outputted the raw dates data from `messy_transactions.csv` against the normalized dates to see if it was translated accurately. I repeated the manual verification for normalized merchants, amounts, and categories. 
 
 Using Copilot saved iteration time, but all parsing heuristics, thresholds, and mappings were validated by tests and manual inspection before being committed.
 
@@ -131,7 +131,7 @@ The generated report (`report/top_spending.json`) contains:
 - `by_category`: array of `{ category, amount, pct }` where `amount` is formatted (string) and `pct` is the fraction of total (float).
 - `total_usd`: formatted total USD string.
 
-## Normalization & Parsing Notes (important implementation details)
+## Normalization & Parsing Notes 
 
 - parse_date(s):
   - Strips ordinal suffixes (`1st`, `2nd`, `3rd`, `4th`).
