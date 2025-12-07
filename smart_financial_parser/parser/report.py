@@ -109,7 +109,10 @@ def build_report_from_dataframe(df: pd.DataFrame, rates: Optional[Dict[str, Deci
 
     report = {
         "top_category": top["category"],
+        # `amount` kept for backward compatibility (will be formatted by writer).
         "amount": top["amount"],
+        # `top_amount` is a numeric value suitable for programmatic consumption.
+        "top_amount": _to_number_for_json(top_amount),
         "by_category": by_category,
         "total_usd": _to_number_for_json(total),
     }

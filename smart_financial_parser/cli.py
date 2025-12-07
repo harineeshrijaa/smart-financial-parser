@@ -36,8 +36,15 @@ def main(argv=None):
 
     path = Path(args.input)
     if not path.exists():
-        log.error("Input file not found: %s", path)
-        raise SystemExit(2)
+        # Convenience: try file under `data/` if user passed a bare filename
+        alt = Path("data") / path.name
+        if alt.exists():
+            path = alt
+            log.info("Input not found at '%s', using '%s'", args.input, str(path))
+            print(f"Using input: {path}")
+        else:
+            log.error("Input file not found: %s", path)
+            raise SystemExit(2)
 
     try:
         df = read_csv(str(path), sample=args.sample)
