@@ -1,0 +1,5 @@
+pandas
+python-dateutil
+dateparser
+rapidfuzz
+pytest

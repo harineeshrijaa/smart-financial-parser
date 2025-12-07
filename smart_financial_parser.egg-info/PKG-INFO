@@ -1,3 +1,17 @@
+Metadata-Version: 2.4
+Name: smart_financial_parser
+Version: 0.1.0
+Summary: Smart Financial Parser
+Author: Harinee Saravanakumar
+License: MIT
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: pandas
+Requires-Dist: python-dateutil
+Requires-Dist: dateparser
+Requires-Dist: rapidfuzz
+Requires-Dist: pytest
+
 # Smart Financial Parser - Harinee Saravanakumar 
 
 A small, test-driven Python CLI that ingests a messy CSV of transactions, normalizes dates/amounts/merchants, categorizes merchants, converts amounts to USD (using deterministic demo FX rates) and produces a top-spending-category report.
@@ -20,8 +34,8 @@ pip install -r requirements.txt
 # This writes package metadata into the venv so `import smart_financial_parser` works.
 pip install -e .
 
-# This is OPTIONAL — only needed if you enable embedding-based merchant matching.
-pip install sentence-transformers 
+# This is optional — only needed if you enable embedding-based merchant matching.
+pip install sentence-transformers
 
 # Run tests
 pytest -q
