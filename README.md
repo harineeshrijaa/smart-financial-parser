@@ -18,19 +18,19 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # This writes package metadata into the venv so `import smart_financial_parser` works.
-pip install -e .
+python -m pip install -e .
 
 # This is OPTIONAL — only needed if you enable embedding-based merchant matching.
 pip install sentence-transformers 
 
 # Run tests
-pytest -q
+python -m pytest -q
 
 # Produce the top-spending report (reads data/messy_transactions.csv)
 python -m smart_financial_parser.cli --input data/messy_transactions.csv --report report/top_spending.json
 
-# Preview cleaned rows: show comparison between raw and normalized data for dates and amounts 
-python -m smart_financial_parser.cli --input data/messy_transactions.csv --clean-preview --preview 50
+# Preview cleaned rows (show parsed date and amount columns)
+python -m smart_financial_parser.cli --input data/messy_transactions.csv --clean-preview --preview 20
 ```
 
 ## Overview
@@ -151,14 +151,14 @@ Below are three concrete improvements I would make next, with short explanations
 
 - Live FX rates via a trusted API
     - Why it matters: Exchange rates change — live rates give accurate USD conversions for real reporting.
-    - Why I didn't implement it: Requires API keys, caching, retries, and deterministic-test scaffolding — more engineering than time allowed.
+    - Why I didn't implement it: Requires API keys, caching, retries, and deterministic tests — more engineering and time than allowed.
 
 - Expand the alias map with LLM/embedding assistance
     - Why it matters: Embeddings find semantic matches that edit-distance misses, improving merchant matching for noisy text.
-    - Why I didn't implement it: Models add downloads, cost, and privacy concerns and need a human-review flow — out of scope for this submission.
+    - Why I didn't implement it: Models add downloads, cost, and privacy considerations and need a human-review flow, which was out of scope.
 
 - Improve category mapping with API/AI assistance
     - Why it matters: AI can suggest categories at scale and surface ambiguous cases for review.
-    - Why I didn't implement it: It needs a verification/override workflow and extra design/testing time.
+    - Why I didn't implement it: It needs a safe verification/override workflow to avoid misclassification and more time to design and test.
 
 
