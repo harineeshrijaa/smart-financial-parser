@@ -1,65 +1,147 @@
 # Smart Financial Parser
 
-Minimal scaffold for the Smart Financial Parser code challenge.
+A small, test-driven Python CLI that ingests a messy CSV of transactions, normalizes dates/amounts/merchants, categorizes merchants, converts amounts to USD (using deterministic demo FX rates) and produces a top-spending-category report.
 
-Quick start:
+This repository is structured for clarity and reproducibility: parsing and canonicalization logic are separated from reporting/FX conversion, and a compact set of unit and integration tests exercise edge cases.
+
+## Quick Start
+
+Clone, create a virtual environment, install dependencies, run tests and the CLI:
 
 ```bash
 cd "/Users/harineesaravanakumar/personal projects/Smart Financial Parser"
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
+# Run tests
+pytest -q
+
+# Produce the top-spending report (reads data/messy_transactions.csv)
+python -m smart_financial_parser.cli --input data/messy_transactions.csv --report report/top_spending.json
+
+# Preview cleaned rows (show parsed date and amount columns)
+python -m smart_financial_parser.cli --input data/messy_transactions.csv --clean-preview --preview 20
 ```
 
-See `smart_financial_parser/` for code and `tests/` for unit tests.
+## Overview
 
-Optional embedding dependency
-----------------------------
-This project includes an optional embedding-based fallback for merchant normalization which improves matching for noisy merchant strings. To enable it, install `sentence-transformers` in your virtual environment:
+- Ingests a CSV (flexible quoting and encoding handling).
+- Normalizes dates to ISO `YYYY-MM-DD` (`parse_date`).
+- Parses amounts into `Decimal` and detects currency where explicit (symbols, 3-letter codes, words).
+- Canonicalizes merchants using an alias map + fuzzy matching with `rapidfuzz` and an optional embedding fallback (`sentence-transformers`).
+- Categorizes merchants using a small deterministic map and heuristics.
+- Aggregates amounts (converted to USD using deterministic demo FX rates) and writes a JSON report with the top spending category.
+
+## Design Decisions
+
+- `pandas` for robust CSV ingestion and small-data convenience (preview, sample, reading different encodings).
+- `dateparser` + `dateutil` for flexible date parsing; we enforce an MDY policy for determinism and add preprocessing (ordinal stripping, two-digit-year pivot) for edge cases.
+- `decimal.Decimal` for monetary math to avoid floating-point rounding errors.
+- `rapidfuzz` for fast, deterministic fuzzy matching against an alias dictionary.
+- Optional `sentence-transformers` embedding fallback for low-confidence merchant matches (disabled by default to keep tests and installs lightweight).
+
+Why these choices: the goal prioritizes correctness and reproducibility (deterministic unit tests) over exotic ML models. Libraries were chosen for their stability, testability, and suitability for text/date/number processing.
+
+## Methodology (mandatory)
+
+### AI Disclosure
+
+I used AI assistance (ChatGPT) to prototype and suggest regexes and parsing heuristics (for example, ordinal stripping and two-digit-year handling) and to brainstorm edge cases and test inputs. All code, tests, and modifications were implemented and reviewed by me; I verified behaviors with unit and integration tests and adjusted logic where AI suggestions needed correction.
+
+### Verification
+
+- Test-driven approach: core parsing functions (`parse_date`, `parse_amount`, `normalize_merchant`) have unit tests (`tests/`).
+- Integration tests exercise the full pipeline on `data/messy_transactions.csv` and assert the cleaned CSV and `report/top_spending.json` outputs.
+- I ran `pytest -q` and spot-checked cleaned rows and the generated report. The demo FX table is intentionally fixed so test outputs are reproducible.
+
+### Responsible use of AI
+
+AI was used as an assistant to speed iteration and produce considered options; I accepted, modified, and rejected suggestions as needed. I take full responsibility for all code included in this repository and for verifying correctness.
+
+## Files of interest
+
+- `data/messy_transactions.csv` — sample messy dataset used for integration tests.
+- `data/merchants.json` — compact canonical merchant → aliases mapping used for deterministic normalization.
+- `smart_financial_parser/cli.py` — Command-Line Interface (flags described below).
+- `smart_financial_parser/parser/normalize.py` — date & amount parsing, merchant cleaning helpers, `convert_amount_to_usd`.
+- `smart_financial_parser/parser/categorize.py` — merchant → category mapping and heuristics.
+- `smart_financial_parser/parser/report.py` — report aggregation, formatting, and JSON writer.
+- `tests/` — unit and integration tests (important ones: `test_normalize_date.py`, `test_normalize_amount*.py`, `test_normalize_merchant.py`, `test_report.py`, `test_cli.py`).
+
+## CLI Usage (important flags)
+
+- `--input <path>`: input CSV (required for most actions). If the path doesn't exist, the CLI attempts `data/<basename>` as a convenience fallback.
+- `--report <path>`: build and write the top-spending JSON report to the given path.
+- `--output <path>`: write cleaned CSV to the given path.
+- `--clean-preview`: show a preview including parsed `date_iso`, `amount_decimal`, and `currency` (uses `--preview N` to control rows shown).
+- `--preview N`: show N rows (default small number).
+- `--sample N`: process only the first N rows (fast iteration).
+- `--default-currency CODE`: preview-only helper; when present, missing currencies in the preview are shown as this code (does not mutate data).
+- `--verbose`: enables debug logs (stderr) while keeping user-facing messages on stdout for reliable test assertions.
+
+Example:
 
 ```bash
-pip install sentence-transformers
+python -m smart_financial_parser.cli --input data/messy_transactions.csv --report report/top_spending.json
 ```
 
-Note: the model weights (e.g. `all-MiniLM-L6-v2`) will be downloaded on first use. This dependency is optional; if it is not installed the code falls back to RapidFuzz-only fuzzy matching.
+This prints a short summary like `Top spending category: Shopping — $223,417.04` and writes `report/top_spending.json`.
 
-Currency conversion (reports)
------------------------------
-The project includes a small, deterministic demo FX table used to convert parsed foreign-currency amounts (and a crypto-like symbol) into USD for reporting and aggregation. This is intended for reproducible tests and examples — it is NOT real-time market data.
+## Report JSON schema
 
-- Where used: the helper `convert_amount_to_usd` in `smart_financial_parser/parser/normalize.py` performs the conversion and is used by the reporting utilities in `smart_financial_parser/parser/report.py`.
-- What it does: when building USD-based reports the pipeline parses each transaction's currency, maps common symbols (e.g. `€` → `EUR`, `C$` → `CAD`, `Ξ` → `ETH`) and multiplies the parsed Decimal amount by the fixed demo rate to produce a USD Decimal.
-- Important: rates are fixed demo values bundled with the code. The README communicates this explicitly as: "fixed demo conversion rates (not real-time)". For production use you should pass live rates from a trusted FX provider into the report builder or add a `--rates-file` CLI option.
+The generated report (`report/top_spending.json`) contains:
 
-Example: to produce a reproducible report, run the CLI and it will apply the demo FX table when converting non-USD amounts to USD for aggregation and top-category calculation.
+- `top_category`: string or `null` — the category with the largest USD total.
+- `amount`: formatted top amount (string, e.g., `$1,234.56`) — kept for backward compatibility and human-readability.
+- `top_amount`: numeric top amount (float) — programmatic, recommended for downstream processing.
+- `by_category`: array of `{ category, amount, pct }` where `amount` is formatted (string) and `pct` is the fraction of total (float).
+- `total_usd`: formatted total USD string.
 
-**What I implemented (Step 1-4 partial)**
-- **Ingestion & CLI**: `smart_financial_parser/parser/ingest.py` (`read_csv`) and `smart_financial_parser/cli.py` — reads CSV, supports `--preview`, `--sample`, `--output` (hook), `--verbose` and a new `--clean-preview` flag.
-- **Date normalization**: `smart_financial_parser/parser/normalize.py` — `parse_date(s)` returns ISO `YYYY-MM-DD` or `None`. Uses `dateparser` first (with `DATE_ORDER=MDY`), expands two-digit years with a pivot (00-49 -> 2000-2049; 50-99 -> 1950-1999), strips ordinal suffixes, and falls back to `dateutil`.
-- **Tests**: Unit tests in `tests/test_normalize_date.py` and an integration test `tests/test_integration_clean_dates.py` that asserts `date_iso` for `data/messy_transactions.csv`.
+Notes: the writer preserves human-readable formatted strings for easy inspection. If you need machine-friendly numeric fields for each `by_category` entry (e.g., `amount_usd`), consider adding that small extension (it's straightforward and I can add it on request).
 
-**How to run the CLI and see normalized dates**
+## Normalization & Parsing Notes (important implementation details)
+
+- parse_date(s):
+  - Strips ordinal suffixes (`1st`, `2nd`, `3rd`, `4th`).
+  - Uses `dateparser` with `DATE_ORDER=MDY`, falls back to `dateutil.parser.parse`.
+  - Two-digit-year pivot: current policy maps `00-25` → 2000-2025 and `26-99` → 1900-1999 to reflect the current test pivot behavior (this was tuned during testing). This is configurable in code if you prefer a different rule.
+
+- parse_amount(s):
+  - Uses `decimal.Decimal` for amounts.
+  - Detects and maps currency symbols to codes (expanded to include: `₹, ₽, ₩, ₺, ฿, ₦, ₫, ₴, ₪` and others).
+  - Performs word/code detection (e.g., `USD`, `dollars`, `eur`, `pounds`) but only sets a currency when detection is explicit; avoids guessing a currency when input is ambiguous (so `2.00` without a symbol/code will parse numeric amount but leave `currency` as `None`).
+  - Handles parentheses and leading-minus for negatives, thousands separators, and malformed numeric strings return `None` for the amount to avoid incorrect assumptions.
+
+- Merchant normalization:
+  - Exact alias match → canonical. Otherwise, `rapidfuzz` fuzzy match against canonical aliases.
+  - Aggressive cleaning (strip punctuation, collapse whitespace) is applied before fuzzy scoring to improve match confidence.
+  - Low-confidence matches are flagged in an `issues` column and an optional embedding-based fallback (using `sentence-transformers`) can be enabled to re-score ambiguous cases.
+
+## Tests & Acceptance
+
+- Run the full test suite:
+```bash
+pytest -q
 ```
-.venv/bin/python -m smart_financial_parser.cli --input data/messy_transactions.csv --clean-preview --preview 1000
-```
 
-**Edge cases we considered and how they are handled**
-- **Ordinal suffixes (1st, 2nd, 3rd, 4th):** stripped via a regex `_strip_ordinal()` before parsing so `5th Jan 2021` becomes `5 Jan 2021`.
-- **Two-digit years:** detected in numeric dates via regex and expanded using a pivot rule: years `00-25` → `2000-2025`, `26-99` → `1900-1999`. This avoids surprises for recent dates and matches the project's current pivot choice (2025-aware).
-- **Ambiguous numeric dates (MM/DD vs DD/MM):** project policy chooses **MDY (month-day-year)** to provide deterministic parsing. `dateparser` is called with `DATE_ORDER="MDY"` and `dateutil` fallback uses `dayfirst=False`.
-- **Timezones / ISO timestamps (e.g., `2023-08-01T14:30:00Z`):** parsed and truncated to the date portion (`2023-08-01`).
-- **Hyphenated day-first `DD-MM-YY` rows:** our two-digit-year regex and parsing handles `31-12-23` producing `2023-12-31`. If the numeric day is >12, `dateparser/dateutil` will interpret correctly as day.
-- **Non-string inputs / empty cells:** input is coerced to `str` when possible; empty or invalid values return `None`.
-- **Malformed dates:** unparseable strings (e.g., `not a date`) yield `None` rather than raising.
+- Key tests:
+  - `tests/test_normalize_date.py` — date parsing edge cases (ordinals, two-digit years, empty/None inputs, MDY policy).
+  - `tests/test_normalize_amount*.py` — amount parsing, currency detection, separators, negatives.
+  - `tests/test_normalize_merchant.py` — canonicalization and fuzzy match behavior.
+  - `tests/test_report.py` & integration tests — end-to-end report generation and CLI behavior.
 
-**Were all edge cases covered?**
-- Covered in tests and in the integration check for `data/messy_transactions.csv`: ordinals, two-digit years, numeric ambiguity (MDY policy), ISO timestamps, hyphenated day-first with two-digit years, empty/missing dates, and malformed values.
-- Remaining/observed limitations:
-	- The two-digit-year pivot is currently set to 26 (00-25 → 2000s, 26-99 → 1900s); if you need a different mapping (e.g., always map `00-99` to 2000s), we can make this configurable.
-	- `dateparser`/`strptime` emits deprecation warnings for ambiguous day-of-month without year — these are currently suppressed for tests but should be re-evaluated if we change parsing behavior.
+Current test status: the repository's test suite passes; the demo FX rates and deterministic matching keep tests reproducible.
 
-**Acceptance criteria used**
-- `parse_date(s)` returns a string in ISO format `YYYY-MM-DD` for valid inputs, otherwise `None`.
-- Unit test `tests/test_normalize_date.py` exercises representative inputs; integration test `tests/test_integration_clean_dates.py` verifies the messy CSV mapping.
+## Limitations & Future Improvements
+
+- FX rates: the project currently ships with deterministic demo conversion rates for reproducible tests (`convert_amount_to_usd`). For production you'd supply live exchange rates (via a `--rates-file` CLI option or a small adapter to a trusted FX API).
+- Merchant canonicalization: the alias map is compact; fuzzy matching works well for the sample data, but a production system would benefit from LLM or embedding-assisted expansion of canonical names and active review workflows for low-confidence rows.
+- Reporting JSON: currently top amounts are included both as formatted strings and as a numeric `top_amount`. I can add machine-ready `amount_usd` values to each `by_category` entry in the report JSON on request.
+- Internationalization & timezones: dates are normalized to local date (no timezone offset preservation). If you need per-transaction timezone-aware reporting we should carry the full ISO timestamp and the original timezone.
+
+## Final notes / Developer rationale
+
+This project was built under a tight, test-driven constraint: prioritize correctness and reproducibility. I used small, deterministic datasets and fixed demo FX rates so that behavior is repeatable in tests. AI-assisted suggestions helped speed iteration on regexes and edge-case thinking but I validated and adapted those suggestions; I accept responsibility for the final implementation and tests.
 
 
