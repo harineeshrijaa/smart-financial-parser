@@ -1,8 +1,8 @@
 # Smart Financial Parser - Harinee Saravanakumar 
 
-A small, test-driven Python CLI that ingests a messy CSV of transactions, normalizes dates/amounts/merchants, categorizes merchants, converts amounts to USD (using deterministic demo FX rates) and produces a top-spending-category report.
+A small, test-driven Python CLI project that ingests unstructured, messy CSV transactions containing columns such as `date`, `amount`, `merchant`, and `notes`. The project cleans and fixes noisy inputs by normalizing dates to ISO, parsing amounts into `Decimal` with explicit currency detection, canonicalizing merchant names (alias maps + fuzzy matching with an optional embedding fallback), categorizing merchants, converting currencies to USD using deterministic demo FX rates, and producing a top-spending-category JSON report.
 
-This repository is structured for clarity and reproducibility: parsing and canonicalization logic are separated from reporting/FX conversion, and a compact set of unit and integration tests exercise edge cases.
+The codebase separates data-cleaning (parsing and merchant canonicalization) from reporting and FX-conversion logic, and provides a focused suite of unit and integration tests that validate edge cases and ensure reproducible behavior.
 
 ## Quick Start
 
@@ -29,24 +29,52 @@ pytest -q
 # Produce the top-spending report (reads data/messy_transactions.csv)
 python -m smart_financial_parser.cli --input data/messy_transactions.csv --report report/top_spending.json
 
-# Preview cleaned rows (show parsed date and amount columns)
-python -m smart_financial_parser.cli --input data/messy_transactions.csv --clean-preview --preview 20
+# Preview cleaned rows: show comparison between raw and normalized data for dates and amounts 
+python -m smart_financial_parser.cli --input data/messy_transactions.csv --clean-preview --preview 50
 ```
 
 ## Overview
 
-- Ingests a CSV (flexible quoting and encoding handling).
+- Ingests a messy CSV.
 - Normalizes dates to ISO `YYYY-MM-DD` (`parse_date`).
 - Parses amounts into `Decimal` and detects currency where explicit (symbols, 3-letter codes, words).
 - Canonicalizes merchants using an alias map + fuzzy matching with `rapidfuzz` and an optional embedding fallback (`sentence-transformers`).
 - Categorizes merchants using a small deterministic map and heuristics.
 - Aggregates amounts (converted to USD using deterministic demo FX rates) and writes a JSON report with the top spending category.
 
+## Methodology
+
+### AI Usage Disclosure
+
+I used Microsoft Copilot as an assistant while I developed this project. Copilot helped me quickly clarify Python syntax, suggested prototype code snippets and regexes (for example, ordinal stripping and two-digit-year handling), and provided ideas for parsing heuristics and fuzzy-search tuning.
+
+Concretely, Copilot accelerated these parts of the workflow:
+- Identifying the best-suited python libraries for the project.
+- Adding various edge cases to the messy CSV file. 
+- Bootstrapping the project with structure
+- implementing date normalization, amount parsing, and merchant canonicalization. 
+    - Prototyping regexes and small parsing helpers that I then turned into unit tests.
+    - Exploring `pandas`/`dateparser` usage patterns when I wasn’t certain about the exact API surface.
+    - Helping reason about fuzzy-match thresholds and cleaning steps for merchant canonicalization.
+- Creating unit and integration tests for all methods. 
+- Documentation
+
+I used Copilot's suggestions as starting points — I accepted, adapted, and rejected suggestions as appropriate. I take full responsibility for every line of code and verified all behavior through tests and manual checks.
+
+### Verification
+
+- Test-first validation: every essential parsing function (`parse_date`, `parse_amount`, `normalize_merchant`) has unit tests that exercise normal cases and edge cases.
+- End-to-end checks: the integration tests run the full pipeline on `data/messy_transactions.csv` to validate cleaned output and the produced `report/top_spending.json`.
+- Manual verification: I also inspected results on real sample rows by printing cleaned outputs for several representative examples. For example, I outputted the raw dates data from `messy_transactions.csv` against the normalized dates to see if it was translated accurately. I repeated the manual verification for normalized merchants, amounts, and categories. 
+
+Using Copilot saved iteration time, but all parsing heuristics, thresholds, and mappings were validated by tests and manual inspection before being committed.
+
 ## Procedure I Took
 
 Below is the development procedure I followed to build the project incrementally and testably:
 
-- Environment & scaffold: created a Python virtualenv, added a minimal `requirements.txt`, and scaffolded the package (`smart_financial_parser/`), `data/`, and `tests/` directories.
+- Research: utilized co-pilot to identify the best-suited libraries for this project by comparing and contrasting all available python modules.  
+- Environment & scaffold: created a Python virtualenv, installed all necessary packed, added a minimal `requirements.txt`, and scaffolded the package (`smart_financial_parser/`), `data/`, and `tests/` directories.
 - Create messy file: authored `data/messy_transactions.csv` with many realistic, messy examples (mixed date formats, quoted fields, currency symbols, and noisy merchant strings) to drive parsing edge cases. I updated this file throughout the development to account for new edge cases I came up with. 
 - Ingest & CLI: implemented `parser/ingest.py` and a small `cli.py` that reads CSV files, supports many flags, and prints user-facing messages for deterministic tests.
 - Date & amount normalization: implemented `parse_date` and `parse_amount` in `parser/normalize.py`, adding ordinal stripping, various date format configurations, currency symbol/word detection, and Decimal-based parsing. I extended the functionality by adding more currencies for detection and accounting for edge cases like two-digit years and determining the pivot (25/26). 
@@ -60,12 +88,12 @@ This procedure enforced a test-first, reproducible approach so each change was v
 
 ## Design Decisions
 
-I researched options and chose pragmatic, well-tested libraries that make the pipeline reliable and easy to test. Here’s why I picked each one and where I use it.
+I researched options and chose pragmatic, well-tested libraries that make the program reliable and easy to test. Here’s why I picked each one and where I use it.
 
-- `pandas`: raw CSV parsing is brittle, so I use `pandas` for resilient reading, preview/sample, and grouping.
+- `pandas`: raw CSV parsing is brittle, so I use `pandas` for resilient reading, preview/sample, grouping, and automatic type inference. 
   - Where: `parser/ingest.py`, `cli.py` (preview/sample), `parser/report.py` (aggregation).
 
-- `dateparser` + `dateutil`: `dateparser` handles messy human dates; `dateutil` is a solid fallback for tricky inputs. I also strip ordinals and apply an MDY policy with a two-digit-year pivot.
+- `dateparser` + `dateutil`: `dateparser` handles messy human date inputs; `dateutil` is a solid fallback for tricky inputs. I also strip ordinals and apply an MDY policy with a two-digit-year pivot.
   - Where: `parser/normalize.py::parse_date`.
 
 - `decimal.Decimal`: money needs exact math — `Decimal` prevents floating-point surprises and gives deterministic rounding.
@@ -76,29 +104,6 @@ I researched options and chose pragmatic, well-tested libraries that make the pi
 
 - `sentence-transformers` (optional): embedding fallback for very noisy merchant text — useful but optional due to model downloads, privacy, and cost.
   - Where: optional fallback in `parser/merchant.py` when fuzzy scores are low.
-
-This keeps the codebase small, testable, and extensible — we can plug in live FX or heavier AI components later behind clear interfaces.
-
-## Methodology
-
-### AI Usage Disclosure
-
-I used Microsoft Copilot as an assistant while I developed this project. Copilot helped me quickly clarify Python syntax, suggested prototype code snippets and regexes (for example, ordinal stripping and two-digit-year handling), and provided ideas for parsing heuristics and fuzzy-search tuning.
-
-Concretely, Copilot accelerated these parts of the workflow:
-- Prototyping regexes and small parsing helpers that I then turned into unit tests.
-- Exploring `pandas`/`dateparser` usage patterns when I wasn’t certain about the exact API surface.
-- Helping reason about fuzzy-match thresholds and cleaning steps for merchant canonicalization.
-
-I used Copilot's suggestions as starting points — I accepted, adapted, and rejected suggestions as appropriate. I take full responsibility for every line of code and verified all behavior through tests and manual checks.
-
-### Verification
-
-- Test-first validation: every essential parsing function (`parse_date`, `parse_amount`, `normalize_merchant`) has unit tests that exercise normal cases and edge cases.
-- End-to-end checks: the integration tests run the full pipeline on `data/messy_transactions.csv` to validate cleaned output and the produced `report/top_spending.json`.
-- Manual verification: I also inspected results on real sample rows by printing cleaned outputs for several representative examples. For example, I outputted the raw dates data from `messy_transactions.csv` against the normalized dates to see if it was translated accurately. I repeated the manual verification for normalized merchants, amounts, and categories. 
-
-Using Copilot saved iteration time, but all parsing heuristics, thresholds, and mappings were validated by tests and manual inspection before being committed.
 
 
 ## Files of interest
@@ -140,61 +145,20 @@ The generated report (`report/top_spending.json`) contains:
 - `by_category`: array of `{ category, amount, pct }` where `amount` is formatted (string) and `pct` is the fraction of total (float).
 - `total_usd`: formatted total USD string.
 
-## Normalization & Parsing Notes 
-
-- parse_date(s):
-  - Strips ordinal suffixes (`1st`, `2nd`, `3rd`, `4th`).
-  - Uses `dateparser` with `DATE_ORDER=MDY`, falls back to `dateutil.parser.parse`.
-  - Two-digit-year pivot: current policy maps `00-25` → 2000-2025 and `26-99` → 1900-1999 to reflect the current test pivot behavior (this was tuned during testing). 
-
-- parse_amount(s):
-  - Uses `decimal.Decimal` for amounts.
-  - Detects and maps currency symbols to codes (expanded to include: `₹, €, £, ¥, Ξ,` and others).
-  - Performs word/code detection (e.g., `USD`, `dollars`, `eur`, `pounds`) but only sets a currency when detection is explicit; avoids guessing a currency when input is ambiguous (so `2.00` without a symbol/code will parse numeric amount but leave `currency` as `None`).
-  - Handles parentheses and leading-minus for negatives, thousands separators, and malformed numeric strings return `None` for the amount to avoid incorrect assumptions.
-
-- Merchant normalization:
-  - Exact alias match → canonical. Otherwise, `rapidfuzz` fuzzy match against canonical aliases.
-  - Aggressive cleaning (strip punctuation, collapse whitespace) is applied before fuzzy scoring to improve match confidence.
-  - Low-confidence matches are flagged in an `issues` column and an optional embedding-based fallback (using `sentence-transformers`) can be enabled to re-score ambiguous cases.
-
-## Tests & Acceptance
-
-- Run the full test suite:
-```bash
-pytest -q
-```
-
-- Key tests:
-  - `tests/test_normalize_date.py` — date parsing edge cases (ordinals, two-digit years, empty/None inputs, MDY policy).
-  - `tests/test_normalize_amount.py` — amount parsing, currency detection, separators, negatives.
-  - `tests/test_normalize_merchant.py` — canonicalization and fuzzy match behavior.
-  - `tests/test_report.py` & integration tests — end-to-end report generation and CLI behavior.
-
-
 ## Limitations & Future Improvements
 
 Below are three concrete improvements I would make next, with short explanations of why they matter and why I didn't implement them for this submission.
 
 - Live FX rates via a trusted API
-  - What I'd change: replace the fixed demo FX table with a small adapter that fetches live exchange rates from a trusted provider (or accepts a `--rates-file` JSON input) and applies caching and daylight-stable caching policies.
-  - Why it matters: real exchange rates fluctuate and accurate USD conversions are essential for production reporting and auditing.
-  - Why I didn't implement it now: integrating a live FX API requires handling authentication, rate limits, error/retry logic, caching for reproducible runs, and tests that remain deterministic. With only two days for this challenge I prioritized a deterministic demo table so tests stay reproducible and reviewers can verify results consistently.
+    - Why it matters: Exchange rates change — live rates give accurate USD conversions for real reporting.
+    - Why I didn't implement it: Requires API keys, caching, retries, and deterministic-test scaffolding — more engineering than time allowed.
 
 - Expand the alias map with LLM/embedding assistance
-  - What I'd change: augment the compact `data/merchants.json` alias map by generating candidate aliases and similarity signals with an embedding model or LLM, then provide a human-in-the-loop review UI to accept/reject new aliases.
-  - Why it matters: fuzzy matching has limits on very noisy or truncated merchant strings; embeddings/LLMs can surface non-obvious aliases and increase match coverage and confidence.
-  - Why I didn't implement it now: embedding/LLM approaches introduce security/privacy considerations (merchant/transaction data potentially sent to third-party services), pricing and quota concerns for model usage, and the need to build a safe review workflow. Those topics require more design and time than available in this short deadline.
+    - Why it matters: Embeddings find semantic matches that edit-distance misses, improving merchant matching for noisy text.
+    - Why I didn't implement it: Models add downloads, cost, and privacy concerns and need a human-review flow — out of scope for this submission.
 
 - Improve category mapping with API/AI assistance
-  - What I'd change: use an API or AI-assisted mapping step to suggest categories for canonical merchants (and provide confidence scores), then fall back to the deterministic map + heuristics for low-confidence cases.
-  - Why it matters: manual category maps are compact and fast, but AI-assisted suggestions speed coverage and help surface ambiguous cases that need human review.
-  - Why I didn't implement it now: an AI-assisted categorization pipeline needs a validation and override process to avoid misclassification; building that safely and testably (and verifying the suggestions) was outside the two-day scope.
-
-These three improvements are deliberate next steps for a production-ready pipeline. I would like to integrate them, and I researched and applied mature Python libraries and deterministic techniques (pandas, dateparser, rapidfuzz, Decimal, etc.) to achieve reliable results within the short deadline. That approach delivered a small, auditable, and testable baseline while leaving the architecture open so live FX, embedding/LLM alias expansion, or AI-assisted categorization can be added safely in a follow-up.
-
-## Final notes / Developer rationale
-
-This project was built under a tight, test-driven constraint: prioritize correctness and reproducibility. I used small, deterministic datasets and fixed demo FX rates so that behavior is repeatable in tests. AI-assisted suggestions helped speed iteration on regexes and edge-case thinking but I validated and adapted those suggestions; I accept responsibility for the final implementation and tests.
+    - Why it matters: AI can suggest categories at scale and surface ambiguous cases for review.
+    - Why I didn't implement it: It needs a verification/override workflow and extra design/testing time.
 
 
