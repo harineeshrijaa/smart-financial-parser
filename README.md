@@ -14,6 +14,9 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
+# This is optional — only needed if you enable embedding-based merchant matching.
+pip install sentence-transformers
+
 # Run tests
 pytest -q
 
