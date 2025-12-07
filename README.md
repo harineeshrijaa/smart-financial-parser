@@ -64,6 +64,9 @@ I used Copilot's suggestions as starting points — I accepted, adapted, and rej
 ### Verification
 
 - Test-first validation: every essential parsing function (`parse_date`, `parse_amount`, `normalize_merchant`) has unit tests that exercise normal cases and edge cases.
+    - Date edge cases: Two‑digit year pivot handling (e.g., 01/03/89 → 1989 vs 01/13/24 → 2024 policy), Slashed, dashed, dot, and textual separators: 2014/07/04, 11-01-30, 1987.01.07, Missing or unusual year placements, Mixed human formats, Ordinal day suffixes, etc
+    - Amount edge cases: Parentheses for negatives, Leading/trailing minus signs and spaces, currency symbols, thousands place punctuation, etc 
+    - Merchant edge cases: store numbers and noisy suffixes/prefix, fullwidth/strange unicode merchant names (ai debugging), aggresive cleaning (strip punctuation, collapse whitespace)
 - End-to-end checks: the integration tests run the full pipeline on `data/messy_transactions.csv` to validate cleaned output and the produced `report/top_spending.json`.
 - Manual verification: I also inspected results on real sample rows by printing cleaned outputs for several representative examples. For example, I outputted the raw dates data from `messy_transactions.csv` against the normalized dates to see if it was translated accurately. I repeated the manual verification for normalized merchants, amounts, and categories. 
 
