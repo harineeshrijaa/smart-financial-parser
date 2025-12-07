@@ -23,6 +23,16 @@ pip install sentence-transformers
 
 Note: the model weights (e.g. `all-MiniLM-L6-v2`) will be downloaded on first use. This dependency is optional; if it is not installed the code falls back to RapidFuzz-only fuzzy matching.
 
+Currency conversion (reports)
+-----------------------------
+The project includes a small, deterministic demo FX table used to convert parsed foreign-currency amounts (and a crypto-like symbol) into USD for reporting and aggregation. This is intended for reproducible tests and examples — it is NOT real-time market data.
+
+- Where used: the helper `convert_amount_to_usd` in `smart_financial_parser/parser/normalize.py` performs the conversion and is used by the reporting utilities in `smart_financial_parser/parser/report.py`.
+- What it does: when building USD-based reports the pipeline parses each transaction's currency, maps common symbols (e.g. `€` → `EUR`, `C$` → `CAD`, `Ξ` → `ETH`) and multiplies the parsed Decimal amount by the fixed demo rate to produce a USD Decimal.
+- Important: rates are fixed demo values bundled with the code. The README communicates this explicitly as: "fixed demo conversion rates (not real-time)". For production use you should pass live rates from a trusted FX provider into the report builder or add a `--rates-file` CLI option.
+
+Example: to produce a reproducible report, run the CLI and it will apply the demo FX table when converting non-USD amounts to USD for aggregation and top-category calculation.
+
 **What I implemented (Step 1-4 partial)**
 - **Ingestion & CLI**: `smart_financial_parser/parser/ingest.py` (`read_csv`) and `smart_financial_parser/cli.py` — reads CSV, supports `--preview`, `--sample`, `--output` (hook), `--verbose` and a new `--clean-preview` flag.
 - **Date normalization**: `smart_financial_parser/parser/normalize.py` — `parse_date(s)` returns ISO `YYYY-MM-DD` or `None`. Uses `dateparser` first (with `DATE_ORDER=MDY`), expands two-digit years with a pivot (00-49 -> 2000-2049; 50-99 -> 1950-1999), strips ordinal suffixes, and falls back to `dateutil`.

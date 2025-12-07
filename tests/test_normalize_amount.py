@@ -19,6 +19,12 @@ from smart_financial_parser.parser.normalize import parse_amount
         ("12..00", None, None),
         ("", None, None),
         (None, None, None),
+        ("C$5.00", Decimal("5.00"), "CAD"),
+        ("A$7.25", Decimal("7.25"), "AUD"),
+        ("₹500", Decimal("500"), "INR"),
+        ("￥1,234", Decimal("1234"), "JPY"),
+        ("Ξ0.5", Decimal("0.5"), "ETH"),
+        ("US$10.00", Decimal("10.00"), "USD"),
     ],
 )
 def test_parse_amount_various(inp, expected_amt, expected_cur):

@@ -1,37 +1,37 @@
 date,merchant,amount,category
-Jan 1st 23,UBER *TRIP,(12.50),Transport
+Jan 1st 23,UBER *TRIP,(€12.50),Transport
 2023-01-02T05:33:21Z,Uber Technologies,$13.00 ,Travel
-01/03/23,UBER EATS,  $25.4,Food
-2023/01/04,Uber*Eats, $25.40 ,Delivery
+01/03/23,UBER EATS,  £25.4,Food
+2023/01/04,Uber*Eats, €25.40 ,Delivery
 5-Jan-23,UBER TRIP ,$ 12 ,Transport
-Jan 6th, TARGET #112, -$54.20 ,Shopping
-2023.01.07,TGT 445,"$19,99",Retail
-January 8 2023,Target Store #112 , $23.10 ,Retail
+Jan 6th, TARGET #112, -₹54.20 ,Shopping
+2023.01.07,TGT 445,"€19,99",Retail
+January 8 2023,Target Store #112 , C$23.10 ,Retail
 2023-01-09, WAL-MART SUPERCENTER 3301 , -$102.33 ,Groceries
-1/10/2023,WALMART , ９８.１ ,Groceries
-11-01-23, Walmart Super Ctr,(101.05),Grocery
-2023/01/12,Aｍａｚｏｎ MKTPLACE PMTS, $14.22 ,Online
-1/13/23, Amazon.Com , $-120.00 ,Ecommerce
-"January 14, 2023",AMZN PRIME ,14.99 ,Subscription
-2023-01-15,SPOTIFY  USA ,-9.99 ,Subscription
-1/16/23, Spotify , (9.99) ,Entertainment
+1/10/2023,WALMART , ９８.１¥ ,Groceries
+11-01-23, Walmart Super Ctr,(£101.05),Grocery
+2023/01/12,Aｍａｚｏｎ MKTPLACE PMTS, €14.22 ,Online
+1/13/23, Amazon.Com , -$120.00 ,Ecommerce
+"January 14, 2023",AMZN PRIME ,14.99USD ,Subscription
+2023-01-15,SPOTIFY  USA ,-€9.99 ,Subscription
+1/16/23, Spotify , (9.99£) ,Entertainment
 2023.01.17,CHIPOTLE #221, $11.30 ,Food
-18-01-2023,Chipotle Mexican Grill ,$12.00 ,Restaurant
-Jan 19 23, CHIPOTLE , -$10.5 ,Dining
+18-01-2023,Chipotle Mexican Grill ,A$12.00 ,Restaurant
+Jan 19 23, CHIPOTLE , -€10.5 ,Dining
 2023/01/20, EXXONMOBIL 44543354 ,$45.00 ,Gas
-1/21/2023,Exxon ,$46.20 ,Fuel
-Jan 22nd 2023,EXXON MOBIL , 44.10 ,Gas
+1/21/2023,Exxon ,¥46.20 ,Fuel
+Jan 22nd 2023,EXXON MOBIL , 44.10USD ,Gas
 2023-01-23,WHOLEFDS MRKT 10203, -$73.90 ,Groceries
-01/24/23,Whole Foods Market , ７５.００ ,Food
-"Jan 25, 2023", WHOLE FOODS ,$-80.45 ,Grocery
-Jan 26th ‘23,AMAZON Mktp US, $1'234.56 ,Online
-1/27/23,AMZN Digital ,$12.3.4 ,Entertainment
+01/24/23,Whole Foods Market ,  ￥７５.００ ,Food
+"Jan 25, 2023", WHOLE FOODS ,£-80.45 ,Grocery
+Jan 26th ‘23,AMAZON Mktp US, €1'234.56 ,Online
+1/27/23,AMZN Digital ,Ξ12.3.4 ,Entertainment
 2023-01-28T14:00:00-05:00,Uber Eats,$15.00 ,Food
-01-29-23,Wal-Mart ,$45.000 ,Groceries
-Jan 30 2023,Whole Foods,"$ 1 234,5",Groceries
+01-29-23,Wal-Mart ,C$45.000 ,Groceries
+Jan 30 2023,Whole Foods,"€ 1 234,5",Groceries
 2023/01/31,Chipotle, $ 10.00 ,Dining
-02/01/23,SPOTIFY,-$ 9.９９ ,Subscription
-2023-02-02,A M A Z O N,$14.2 ,Online
-3rd Feb 2023,ExxonMobil,$40 ,Gas
-2023-02-04,Starbucks Coffee,$4’75 ,Coffee
-2023-02-05T09:01:11+00:00,STARBUCKS #4421, (4.75) ,Cafe
+02/01/23,SPOTIFY,-₹ 9.９９ ,Subscription
+2023-02-02,A M A Z O N,€14.2 ,Online
+3rd Feb 2023,ExxonMobil,£40 ,Gas
+2023-02-04,Starbucks Coffee,£4’75 ,Coffee
+2023-02-05T09:01:11+00:00,STARBUCKS #4421, (A$4.75) ,Cafe

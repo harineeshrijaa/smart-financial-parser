@@ -5,7 +5,10 @@ from pathlib import Path
 import sys
 
 from smart_financial_parser.parser.ingest import read_csv
-from smart_financial_parser.parser.normalize import parse_date, parse_amount
+import json
+
+from smart_financial_parser.parser.normalize import parse_date, parse_amount, normalize_merchant
+from smart_financial_parser.parser.report import build_report_from_dataframe, write_report_json, format_usd
 
 
 def configure_logging(verbose: bool) -> None:
@@ -115,7 +118,47 @@ def main(argv=None):
             log.error("Failed to write output CSV: %s", e)
 
     if args.report:
-        log.info("Report generation not yet implemented; would write to %s", args.report)
+        try:
+            # Prepare cleaned DataFrame similar to --output step so report uses cleaned fields
+            df_out = df.copy()
+            if "date" in df_out.columns and "date_iso" not in df_out.columns:
+                df_out["date_iso"] = df_out["date"].apply(parse_date)
+            if "amount" in df_out.columns and ("amount_decimal" not in df_out.columns or "currency" not in df_out.columns or "issues" not in df_out.columns):
+                parsed_out = df_out["amount"].apply(lambda s: pd.Series(parse_amount(s, return_issues=True), index=["amount_decimal", "currency", "issues"]))
+                df_out = pd.concat([df_out, parsed_out], axis=1)
+
+            # Load merchant map if available and normalize merchants
+            merchant_map_path = Path("data/merchants.json")
+            merchant_map = None
+            if merchant_map_path.exists():
+                try:
+                    merchant_map = json.loads(merchant_map_path.read_text(encoding="utf-8"))
+                except Exception:
+                    merchant_map = None
+
+            if "merchant" in df_out.columns:
+                # compute canonical names where possible
+                if merchant_map:
+                    def _norm(m):
+                        try:
+                            canon, score = normalize_merchant(m, merchant_map)
+                            return canon
+                        except Exception:
+                            return None
+                    df_out["merchant_canonical"] = df_out["merchant"].apply(_norm)
+                else:
+                    df_out["merchant_canonical"] = None
+
+            # Build report and write JSON (formatted amounts written)
+            report = build_report_from_dataframe(df_out)
+            write_report_json(report, args.report)
+            # Print short summary to stdout (formatted)
+            top = report.get("top_category")
+            amt = report.get("amount")
+            print(f"Top spending category: {top} — {format_usd(amt)}")
+            log.info("Wrote report to %s", args.report)
+        except Exception as e:
+            log.error("Failed to generate report: %s", e)
 
     return 0
 

@@ -188,13 +188,50 @@ def parse_amount(s: Optional[str], return_issues: bool = False) -> Tuple[Optiona
             code = m_code_lead.group(1).upper()
             t = t[m_code_lead.end() :].strip()
 
-    # Detect symbol
+    # Detect symbol. Handle multi-character symbols (e.g. C$, A$, US$) first,
+    # then single-character symbols including fullwidth forms and crypto-like symbols.
     symbol = None
-    m_sym = re.search(r"([\$£€¥₹₽₩₺฿₦₫₴₪])", t)
-    if m_sym:
-        symbol = m_sym.group(1)
-        # remove symbol for numeric parsing
-        t = t.replace(symbol, "").strip()
+    # Ordered list to prefer multi-char symbols before single-char '$'
+    symbol_candidates = [
+        "US$",
+        "USD$",
+        "C$",
+        "A$",
+        "CA$",
+        "AU$",
+        # single-char symbols (include fullwidth yen '￥' and crypto-like 'Ξ')
+        "$",
+        "£",
+        "€",
+        "¥",
+        "￥",
+        "₹",
+        "Ξ",
+        "₽",
+        "₩",
+        "₺",
+        "฿",
+        "₦",
+        "₫",
+        "₴",
+        "₪",
+    ]
+    found_sym = None
+    t_work = t
+    # search for any candidate present in the string (case-insensitive for ASCII prefixes)
+    for cand in symbol_candidates:
+        # For ASCII multi-char candidates, check case-insensitively
+        if any(ch.isascii() for ch in cand):
+            if re.search(re.escape(cand), t_work, flags=re.IGNORECASE):
+                found_sym = cand
+                break
+        else:
+            if cand in t_work:
+                found_sym = cand
+                break
+    if found_sym:
+        symbol = found_sym
+        t = t.replace(found_sym, "").strip()
 
     # Now t should be the numeric-ish part, possibly with commas/dots
     # Heuristics for comma/dot as thousand/decimal separators:
@@ -272,10 +309,18 @@ def parse_amount(s: Optional[str], return_issues: bool = False) -> Tuple[Optiona
     elif symbol:
         currency = {
             "$": "USD",
+            "US$": "USD",
+            "USD$": "USD",
             "£": "GBP",
             "€": "EUR",
             "¥": "JPY",
+            "￥": "JPY",
             "₹": "INR",
+            "C$": "CAD",
+            "CA$": "CAD",
+            "A$": "AUD",
+            "AU$": "AUD",
+            "Ξ": "ETH",
             "₽": "RUB",
             "₩": "KRW",
             "₺": "TRY",
@@ -319,6 +364,74 @@ def parse_amount(s: Optional[str], return_issues: bool = False) -> Tuple[Optiona
     if return_issues:
         return val, currency, issues
     return val, currency
+
+
+def convert_amount_to_usd(amount: Optional[Decimal], currency: Optional[str], rates: Optional[dict] = None, assume_missing_usd: bool = True) -> Optional[Decimal]:
+    """Convert a Decimal `amount` in `currency` to USD using provided `rates`.
+
+    - `rates` should be a mapping of currency code -> USD per unit (e.g. {'EUR': '1.08'}).
+      Values may be strings, floats, or Decimals; they will be converted to Decimal.
+    - If `rates` is None a sensible default set of example rates is used.
+    - If `currency` is None and `assume_missing_usd` is True, the function returns `amount` unchanged.
+    - Returns a Decimal in USD or None when conversion isn't possible.
+
+    Note: This function does not fetch live rates; it's intended for deterministic tests
+    and offline pipelines. For production use, pass in fresh rates from an exchange API.
+    """
+    if amount is None:
+        return None
+
+    # Default example rates (USD per unit of currency)
+    default_rates = {
+        "USD": "1",
+        "EUR": "1.08",
+        "GBP": "1.25",
+        "JPY": "0.007",
+        "INR": "0.012",
+        "CAD": "0.74",
+        "AUD": "0.66",
+        "ETH": "1800",
+    }
+
+    use_rates = {}
+    if rates:
+        # normalize incoming rates to strings for Decimal
+        for k, v in rates.items():
+            try:
+                use_rates[k.upper()] = Decimal(str(v))
+            except Exception:
+                pass
+    # merge defaults for any missing values
+    for k, v in default_rates.items():
+        if k not in use_rates:
+            use_rates[k] = Decimal(v)
+
+    if not currency:
+        if assume_missing_usd:
+            return amount
+        return None
+
+    cur = currency.upper()
+    # Some inputs may include symbol-like codes (e.g. "$" or "US$") - normalize common forms
+    cur = {
+        "$": "USD",
+        "US$": "USD",
+        "USD$": "USD",
+        "C$": "CAD",
+        "CA$": "CAD",
+        "A$": "AUD",
+        "AU$": "AUD",
+        "Ξ": "ETH",
+    }.get(cur, cur)
+
+    rate = use_rates.get(cur)
+    if rate is None:
+        return None
+
+    try:
+        return (amount * rate).normalize()
+    except Exception:
+        return None
 
 
 def _clean_merchant(raw: Optional[str]) -> str:

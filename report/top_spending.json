@@ -1,0 +1,37 @@
+{
+  "top_category": "Shopping",
+  "amount": "$223,417.04",
+  "by_category": [
+    {
+      "category": "Shopping",
+      "amount": "$223,417.04",
+      "pct": 0.9921184113585608
+    },
+    {
+      "category": "Groceries",
+      "amount": "$964.67",
+      "pct": 0.004283768453316107
+    },
+    {
+      "category": "Food",
+      "amount": "$608.50",
+      "pct": 0.0027021396994234828
+    },
+    {
+      "category": "Fuel",
+      "amount": "$139.42",
+      "pct": 0.0006191163794472013
+    },
+    {
+      "category": "Transport",
+      "amount": "$85.68",
+      "pct": 0.000380475479780779
+    },
+    {
+      "category": "Entertainment",
+      "amount": "$-23.40",
+      "pct": -0.000103911370528364
+    }
+  ],
+  "total_usd": "$225,191.91"
+}
