@@ -4,9 +4,6 @@ import unicodedata
 from decimal import Decimal, InvalidOperation
 from typing import Optional, Tuple
 
-# dateparser emits a DeprecationWarning when parsing ambiguous day-of-month
-# strings without an explicit year. Suppress that specific warning here so
-# it doesn't surface during test runs; we'll still let other warnings through.
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="dateparser")
 
 from dateparser import parse as dp_parse
@@ -49,16 +46,6 @@ def parse_date(s: Optional[str]) -> Optional[str]:
     s2 = s.strip()
     s2 = _strip_ordinal(s2)
 
-    # Policy decisions:
-    # - Ambiguous numeric dates (e.g. 01/02/03 or 01-02-2020) will be
-    #   interpreted using MDY (month-day-year) order to match common
-    #   US-style statements and the project's chosen convention.
-    # - Two-digit years will be expanded using a pivot year to map to a
-    #   4-digit year. We use a pivot of 50: 00-49 -> 2000-2049, 50-99 -> 1950-1999.
-    #   This is explicit and avoids surprising interpretations.
-    # - Output format is ISO `YYYY-MM-DD` (or `None` when unparseable).
-
-    # Expand two-digit years in simple numeric dates before parsing.
     # Match patterns like M/D/YY or MM-DD-YY, etc.
     def _expand_2digit_year(match: re.Match) -> str:
         m = match.group(1)
@@ -150,7 +137,6 @@ def parse_amount(s: Optional[str], return_issues: bool = False) -> Tuple[Optiona
         issues.append("unicode_digits_converted")
 
     # Normalize common non-ASCII decimal/thousands separators to ASCII form
-    # Fullwidth dot (．) -> '.' ; Arabic decimal (٫, U+066B) -> '.' ; Arabic thousands (٬, U+066C) -> removed
     dec_replacements = {
         "．": ".",
         "\u066B": ".",
@@ -188,8 +174,6 @@ def parse_amount(s: Optional[str], return_issues: bool = False) -> Tuple[Optiona
             code = m_code_lead.group(1).upper()
             t = t[m_code_lead.end() :].strip()
 
-    # Detect symbol. Handle multi-character symbols (e.g. C$, A$, US$) first,
-    # then single-character symbols including fullwidth forms and crypto-like symbols.
     symbol = None
     # Ordered list to prefer multi-char symbols before single-char '$'
     symbol_candidates = [
@@ -199,7 +183,7 @@ def parse_amount(s: Optional[str], return_issues: bool = False) -> Tuple[Optiona
         "A$",
         "CA$",
         "AU$",
-        # single-char symbols (include fullwidth yen '￥' and crypto-like 'Ξ')
+        # single-char symbols
         "$",
         "£",
         "€",
@@ -233,8 +217,6 @@ def parse_amount(s: Optional[str], return_issues: bool = False) -> Tuple[Optiona
         symbol = found_sym
         t = t.replace(found_sym, "").strip()
 
-    # Now t should be the numeric-ish part, possibly with commas/dots
-    # Heuristics for comma/dot as thousand/decimal separators:
     num = t
     # Remove spaces
     num = num.replace(" ", "")
@@ -368,15 +350,7 @@ def parse_amount(s: Optional[str], return_issues: bool = False) -> Tuple[Optiona
 
 def convert_amount_to_usd(amount: Optional[Decimal], currency: Optional[str], rates: Optional[dict] = None, assume_missing_usd: bool = True) -> Optional[Decimal]:
     """Convert a Decimal `amount` in `currency` to USD using provided `rates`.
-
-    - `rates` should be a mapping of currency code -> USD per unit (e.g. {'EUR': '1.08'}).
-      Values may be strings, floats, or Decimals; they will be converted to Decimal.
-    - If `rates` is None a sensible default set of example rates is used.
-    - If `currency` is None and `assume_missing_usd` is True, the function returns `amount` unchanged.
-    - Returns a Decimal in USD or None when conversion isn't possible.
-
-    Note: This function does not fetch live rates; it's intended for deterministic tests
-    and offline pipelines. For production use, pass in fresh rates from an exchange API.
+    This function does not fetch live rates.
     """
     if amount is None:
         return None
@@ -435,9 +409,7 @@ def convert_amount_to_usd(amount: Optional[Decimal], currency: Optional[str], ra
 
 
 def _clean_merchant(raw: Optional[str]) -> str:
-    """Normalize merchant text for matching: lower-case, unicode-normalize,
-    strip punctuation, collapse spaces, and remove common noise like store numbers.
-
+    """
     Returns a cleaned string suitable for exact or fuzzy matching.
     """
     if not raw:
@@ -453,14 +425,8 @@ def _clean_merchant(raw: Optional[str]) -> str:
     s = re.sub(r"\b(store|store\s*#|atm|pos|terminal)\b", " ", s)
     # Remove long numeric sequences (likely transaction ids)
     s = re.sub(r"\b\d{4,}\b", " ", s)
-    # Collapse single-letter spaced tokens like 'a m a z o n' -> 'amazon'
     # remove spaces between single-letter tokens so spaced acronyms/words normalize
     s = re.sub(r"\b([a-zA-Z])(?:\s+)(?=[a-zA-Z]\b)", r"\1", s)
-    # Additional aggressive normalization helper: remove common store-type tokens
-    # (this does not run by default; an aggressive pass uses a variant of this)
-    # kept here so it can be reused elsewhere
-    # e.g. 'wal-mart supercenter 3301' -> 'wal-mart supercenter'
-    # (we do not remove 'supercenter' on the normal pass to preserve tokens)
     # Collapse whitespace
     s = re.sub(r"\s+", " ", s).strip()
     return s
@@ -468,10 +434,6 @@ def _clean_merchant(raw: Optional[str]) -> str:
 
 def _aggressive_clean(s: str) -> str:
     """A stronger cleaning pass for low-confidence inputs.
-
-    - remove numeric suffixes and store/unit tokens
-    - map common variants to simpler forms
-    - remove words like 'supercenter', 'store', 'center', 'ctr', 'branch'
     This is applied only when initial fuzzy score is below threshold.
     """
     if not s:
@@ -627,7 +589,7 @@ def normalize_merchant(raw: Optional[str], merchant_map: dict, threshold: int = 
             # fall through to conservative substring matching
             pass
 
-    # Fallback: simple substring checks (conservative)
+    # Fallback
     for choice in choices:
         if cleaned in choice or choice in cleaned:
             canonical = alias_map.get(choice)

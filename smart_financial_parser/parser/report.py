@@ -22,13 +22,6 @@ def _to_number_for_json(d: Decimal) -> Any:
 
 def build_report_from_dataframe(df: pd.DataFrame, rates: Optional[Dict[str, Decimal]] = None, group_by: str = "category", round_digits: Optional[int] = 2) -> Dict[str, Any]:
     """Given a cleaned DataFrame with an `amount` column (raw), produce a USD-aggregated report.
-
-    Steps:
-    - Ensure `amount_decimal` and `currency` columns exist by parsing `amount` where necessary.
-    - Convert all amounts to USD using `convert_amount_to_usd` and provided `rates`.
-    - Use `categorize_dataframe` to ensure `category` exists (falls back to heuristics).
-    - Group by `group_by` (either 'category' or 'merchant_canonical') and sum USD amounts.
-    - Produce a dict with `top_category`, `amount`, `by_category` where amounts are JSON-serializable.
     """
     if "amount_decimal" not in df.columns or "currency" not in df.columns:
         parsed = df["amount"].apply(lambda s: pd.Series(parse_amount(s)))
@@ -109,7 +102,7 @@ def build_report_from_dataframe(df: pd.DataFrame, rates: Optional[Dict[str, Deci
 
     report = {
         "top_category": top["category"],
-        # `amount` kept for backward compatibility (will be formatted by writer).
+        # `amount` kept for backward compatibility.
         "amount": top["amount"],
         # `top_amount` is a numeric value suitable for programmatic consumption.
         "top_amount": _to_number_for_json(top_amount),
@@ -155,7 +148,7 @@ def write_report_json(report: Dict[str, Any], out_path: str) -> None:
             return f"{s} USD"
 
     # Ensure all Decimal -> serializable; optionally format amounts for readability
-    # We'll produce a shallow copy with formatted amount fields so the original report stays numeric.
+    # shallow copy with formatted amount fields so the original report stays numeric.
     formatted_report = dict(report)
     # Format top amount and total
     if "amount" in formatted_report:

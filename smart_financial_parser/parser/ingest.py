@@ -11,7 +11,7 @@ def read_csv(path: str, sample: Optional[int] = None, *, encoding: str = "utf-8"
     - encoding: file encoding (defaults to 'utf-8')
     - keep_default_na: pass-through to pandas to control NA parsing; default False keeps raw strings
 
-    Returns a pandas.DataFrame with all columns read as strings (to preserve messy input).
+    Returns a pandas.DataFrame with all columns read as strings.
 
     Raises ValueError with a helpful message on failure to read.
     """
